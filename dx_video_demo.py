@@ -12,6 +12,8 @@ from tqdm import tqdm
 import cv2
 import threading
 
+from dx_engine import InferenceEngine
+
 def get_args():
     # fmt: off
     parser = argparse.ArgumentParser(description="Generate Similarity Matrix from ONNX files")
@@ -132,6 +134,71 @@ class VideoThread(threading.Thread):
         cv2.putText(self.new_text_pannel_frame, "{}. ".format(argmax_index) + self.gt_text_list[argmax_index] + ", sim : {:.3}".format(new_logit[0][0]), (5, 15 + (20 * argmax_index)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
 
 
+
+class DXVideoEncoder():
+    def __init__(self, model_path: str):
+        self.ie = InferenceEngine(model_path)
+        
+    def run(self, x):
+        print("input", x.shape, x.dtype, x.min(), x.max())
+        x = self.preprocess_torch(x).numpy()
+        ret = []
+        for i in range(x.shape[0]):
+            inp = x[i:i+1]
+            print("input2", inp.shape, inp.dtype, inp.min(), inp.max())
+            o = self.ie.run(inp)[0]
+            ret.append(self.postprocess_torch(torch.from_numpy(o)))
+        z = torch.cat(ret, dim=0)
+        print(z.shape)
+        print(z.dtype)
+        
+        return z
+    
+        
+    def preprocess_numpy(
+        self,
+        x: np.ndarray,
+        mul_val: np.ndarray = np.float32([64.75]),
+        add_val: np.ndarray = np.float32([-11.949951171875]),
+        ) -> np.ndarray:
+        x = x.astype(np.float32)
+        x = x * mul_val + add_val
+        x = x.round().clip(-128, 127)
+        x = x.astype(np.int8)
+        x = np.reshape(x, [1, 3, 7, 32, 7, 32])
+        x = np.transpose(x, [0, 2, 4, 3, 5, 1])
+        x = np.reshape(x, [1, 49, 48, 64])
+        x = np.transpose(x, [0, 2, 1, 3])
+        return x
+
+    def preprocess_torch(
+            self,
+            x: torch.Tensor,
+            mul_val: torch.Tensor = torch.FloatTensor([64.75]),
+            add_val: torch.Tensor = torch.FloatTensor([-11.949951171875]),
+        ) -> torch.Tensor:
+        b = x.shape[0]
+        x = x.to(torch.float32)
+        x = x * mul_val + add_val
+        x = x.round().clip(-128, 127)
+        x = x.to(torch.int8)
+        x = torch.reshape(x, [b, 3, 7, 32, 7, 32])
+        x = torch.permute(x, [0, 2, 4, 3, 5, 1])
+        x = torch.reshape(x, [b, 49, 48, 64])
+        x = torch.permute(x, [0, 2, 1, 3])
+        return x
+
+    def postprocess_numpy(self, x: np.ndarray) -> np.ndarray:
+        assert len(x.shape) == 3
+        x = x[:, 0]
+        return x / np.linalg.norm(x, axis=-1, keepdims=True)
+
+    def postprocess_torch(self, x: torch.Tensor) -> torch.Tensor:
+        assert len(x.shape) == 3
+        x = x[:, 0]
+        return x / torch.norm(x, dim=-1, keepdim=True)
+    
+
 def main():
     from sub_clip4clip.dataloaders.rawvideo_util import RawVideoExtractorCV2
     
@@ -169,6 +236,7 @@ def main():
     text_encoder = PiaONNXTensorRTModel(
         model_path=args.text_encoder_onnx, device=device
     )
+    dx_video_encoder = DXVideoEncoder("dxnn/pia_vit/pia_vit_240812.dxnn")
     
     model_load_time_e = time.perf_counter_ns()
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
@@ -292,8 +360,8 @@ def main():
         
         get_video_data_time_s = time.perf_counter_ns()
         # torch video tensor : 11, 3, 224, 224 (num windows, channel, height, width) 
-        print(video_extractor.get_video_data(gt_video_path)['video'][0].shape)
-        raw_video_data = video_extractor.get_video_data(gt_video_path)['video'][0].unsqueeze(0).to(device)
+        raw_video_data = video_extractor.get_video_data(gt_video_path)['video'].to(device)
+        # raw_video_data = raw_video_data[0].unsqueeze(0).to(device)
         if j == 0:
             video_thread.start()
         raw_video_mask_data = torch.ones(1, raw_video_data.shape[0])
@@ -303,7 +371,7 @@ def main():
         video_encoder_pred_time_s = time.perf_counter_ns()
         # [11, 512]
         video_pred = video_encoder(raw_video_data)
-        print(video_pred.shape)
+        # video_pred = dx_video_encoder.run(raw_video_data)
         video_encoder_pred_time_e = time.perf_counter_ns()
         t_video_encoder.append((video_encoder_pred_time_e - video_encoder_pred_time_s) / video_pred.shape[0])
         
@@ -316,7 +384,9 @@ def main():
             calculate_sim_time_e = time.perf_counter_ns()
             t_sim_value.append(calculate_sim_time_e - calculate_sim_time_s)
         argmax_index = np.argmax(np.stack(result_logits))
-        print("max retrieve_logits = {}, argmax = {}".format(result_logits[argmax_index], argmax_index))
+        print("    - max retrieve_logits = {}, argmax = {}".format(result_logits[argmax_index], argmax_index))
+        print("    - GT   : " + gt_text_list[j])
+        print("    - PRED : " + gt_text_list[argmax_index])
         video_thread.update_text(argmax_index, gt_text_list[argmax_index], result_logits[argmax_index])
         
         while gt_video_path == video_thread.video_path_current:
