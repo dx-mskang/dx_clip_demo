@@ -28,8 +28,8 @@ def get_args():
     
     # Dataset Path Arguments
     parser.add_argument("--val_csv", type=str, default="assets/data/sampled/MSRVTT_JSFUSION_test_10.csv", help="CSV file path of caption labels")
-    # parser.add_argument("--features_path", type=str, default="assets/data/full/MSRVTT_Videos", help="Videos directory")
-    parser.add_argument("--features_path", type=str, default="assets/demo_videos", help="Videos directory")
+    parser.add_argument("--features_path", type=str, default="assets/data/full/MSRVTT_Videos", help="Videos directory")
+    # parser.add_argument("--features_path", type=str, default="assets/demo_videos", help="Videos directory")
     
     # Dataset Configuration Arguments
     parser.add_argument("--max_words", type=int, default=20, help="")
@@ -159,10 +159,11 @@ class VideoThread(threading.Thread):
         self.result_text = ""
         self.result_logit = 0.0
         self.released = False
-        self.pannel_size_w = 700 
-        self.pannel_size_h = 700
+        self.pannel_size_w = 900 
+        self.pannel_size_h = 900
         self.video_size_w = 640
         self.video_size_h = 480
+        self.text_intervals = 30
         self.text_pannel_frame = np.ones((self.pannel_size_w, self.pannel_size_h, 3), dtype=np.uint8) * 255
         self.new_text_pannel_frame = np.ones((self.pannel_size_w, self.pannel_size_h, 3), dtype=np.uint8) * 255
         self.original = np.zeros((224, 224, 3), dtype=np.uint8)
@@ -176,7 +177,7 @@ class VideoThread(threading.Thread):
         global global_quit
         i = 0
         for text_i in self.gt_text_list:
-            cv2.putText(self.text_pannel_frame, "{}. ".format(i) + text_i, (5, 15 + (20 * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(self.text_pannel_frame, "{}. ".format(i) + text_i, (5, 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
             i+=1
         self.new_text_pannel_frame = self.text_pannel_frame.copy()
         while not self.stop_thread:
@@ -205,13 +206,13 @@ class VideoThread(threading.Thread):
             cv2.putText(frame, self.final_text, (10, self.video_size_h-50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
             
             if self.update_new_text:
-                cv2.putText(self.text_pannel_frame, "{}. ".format(i) + self.new_text, (5, 15 + (20 * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(self.text_pannel_frame, "{}. ".format(i) + self.new_text, (5, 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
                 i+=1
                 self.update_new_text = False
             
             if self.pop_last_text:
                 i-=1
-                cv2.rectangle(self.text_pannel_frame, (0, 15 + (20 * i) - 15), (self.pannel_size_w, 15 + (20 * i) + 15), (255, 255, 255), -1)
+                cv2.rectangle(self.text_pannel_frame, (0, 15 + (self.text_intervals * i) - 15), (self.pannel_size_w, 15 + (self.text_intervals * i) + 10), (255, 255, 255), -1)
                 self.new_text_pannel_frame = self.text_pannel_frame.copy()
                 self.pop_last_text = False
                 self.final_text = " "
@@ -222,7 +223,7 @@ class VideoThread(threading.Thread):
             cv2.imshow('Text', self.new_text_pannel_frame)
             cv2.imshow('Video', frame)
             
-            if cv2.waitKey(1) == ord('q'):
+            if cv2.waitKey(25) == ord('q'):
                 break
         self.released = True
         self.cap.release()
@@ -231,14 +232,23 @@ class VideoThread(threading.Thread):
     def stop(self):
         self.stop_thread = True
 
-    def update_text(self, argmax_index, new_text, new_logit):
+    def update_text(self, argmax_index, new_text, new_logit, mode = 1):
         self.final_text = new_text + ",  sim : {:.3}".format(new_logit[0][0])
-        self.new_text_pannel_frame = self.text_pannel_frame.copy()
-        cv2.putText(self.new_text_pannel_frame, 
+        cv2.rectangle(self.new_text_pannel_frame, 
+                      (0, 15 + (self.text_intervals * argmax_index) - 15), 
+                      (self.pannel_size_w, 15 + (self.text_intervals * argmax_index) + 10), (255, 255, 255), -1)
+        if mode == 1:
+            cv2.putText(self.new_text_pannel_frame, 
                     "{}. ".format(argmax_index) + self.gt_text_list[argmax_index] 
                     + ", sim : {:.3}".format(new_logit[0][0]), 
-                    (5, 15 + (20 * argmax_index)), 
+                    (5, 15 + (self.text_intervals * argmax_index)), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
+        else:
+            cv2.putText(self.new_text_pannel_frame, 
+                    "{}. ".format(argmax_index) + self.gt_text_list[argmax_index] 
+                    + ", sim : {:.1}".format(new_logit[0][0]), 
+                    (5, 15 + (self.text_intervals * argmax_index)), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
     
     def transform(self, n_px):
         return Compose([
@@ -307,7 +317,6 @@ def main():
         "video9770", "video9771", "video7020", "video9773", "video7026", 
         "video9775", "video9776", "video9778", "video9779", 
         "video7028", "video7029", "video9772", "video7021", "video9774", 
-        "video7027", "video9731", "video7024", "video9777", "video8913", 
         "video8912", "video8910", "video8917", "video8916", 
         "video8915", "video8914", "video8919", "video8918", "video9545"
     ]
@@ -337,12 +346,7 @@ def main():
         "a man is singing and standing in the road", 
         "cartoon show for kids", 
         "some cartoon characters are moving around an area", 
-        "baseball player hits ball", 
-        "a rocket is lauching into a blue sky smoke is emerging from the base of the rocket", 
-        "the man in the video is showing a brief viewing of how the movie is starting", 
-        "a woman is mixing food in a mixing bowl", 
-        "little pet shop cat getting a bath and washed with little brush", 
-        "a student explains to his teacher about the sheep of another student", 
+        "baseball player hits ball",  
         "a video about different sports", 
         "a family is having coversation", 
         "adding ingredients to a pizza", 
@@ -442,19 +446,14 @@ def main():
         
         video_pred = video_encoder(raw_video_data)
         # video_pred = dxnn_video_encoder.run(raw_video_data)
-        
-        if False:
-            video_pred = torch.gather(video_pred, 1, torch.from_numpy(np.zeros((1, 512), dtype=np.int64)))
-            reduceL2_output = torch.norm(video_pred, keepdim=True)
-            video_pred = video_pred/reduceL2_output
         result_logits = []
         for k in range(len(text_vector_list)):
             retrieve_logits = _loose_similarity(text_vector_list[k], video_pred, raw_video_mask_data)
             result_logits.append(retrieve_logits)
+            video_thread.update_text(k,gt_text_list[k], result_logits[k]/(j+1), -1)
             
         if len(text_vector_list) > 0 :
             result_logits_np += np.stack(result_logits)
-            
             argmax_index = np.argmax(result_logits_np / (j+1))
             video_thread.update_text(argmax_index,gt_text_list[argmax_index], result_logits_np[argmax_index]/(j+1))
         # print("max retrieve_logits = {}, argmax = {}".format(result_logits_np[argmax_index]/(j+1), argmax_index))
