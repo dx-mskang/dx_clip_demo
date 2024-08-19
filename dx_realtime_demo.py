@@ -16,9 +16,6 @@ import threading
 
 from dx_engine import InferenceEngine
 
-# for demo 
-import curses
-
 input_text = ""
 global_quit = False
 
@@ -28,8 +25,8 @@ def get_args():
     
     # Dataset Path Arguments
     parser.add_argument("--val_csv", type=str, default="assets/data/sampled/MSRVTT_JSFUSION_test_10.csv", help="CSV file path of caption labels")
-    parser.add_argument("--features_path", type=str, default="assets/data/full/MSRVTT_Videos", help="Videos directory")
-    # parser.add_argument("--features_path", type=str, default="assets/demo_videos", help="Videos directory")
+    # parser.add_argument("--features_path", type=str, default="assets/data/full/MSRVTT_Videos", help="Videos directory")
+    parser.add_argument("--features_path", type=str, default="assets/demo_videos", help="Videos directory")
     
     # Dataset Configuration Arguments
     parser.add_argument("--max_words", type=int, default=20, help="")
@@ -95,20 +92,20 @@ class DXVideoEncoder():
         self.ie = InferenceEngine(model_path)
         
     def run(self, x):
-        x = self.preprocess_torch(x).numpy()
-        output = self.ie.run(x)
-        y = output[0]
-        z = self.postprocess_torch(torch.from_numpy(y))
-        return z
-        
-        
-        
+        x = x.numpy()
+        x = self.preprocess_numpy(x)
+        x = np.ascontiguousarray(x)
+        o = self.ie.run(x)[0]
+        o = self.postprocess_numpy(o)
+        o = torch.from_numpy(o)
+        return o
+                
     def preprocess_numpy(
         self,
-        x: np.ndarray,
-        mul_val: np.ndarray = np.float32([64.75]),
-        add_val: np.ndarray = np.float32([-11.949951171875]),
-        ) -> np.ndarray:
+        x:np.ndarray,
+        mul_val: np.ndarray = np.float32([64.75055694580078]),
+        add_val: np.ndarray = np.float32([-11.950003623962402]),
+    ) -> np.ndarray:
         x = x.astype(np.float32)
         x = x * mul_val + add_val
         x = x.round().clip(-128, 127)
@@ -119,12 +116,13 @@ class DXVideoEncoder():
         x = np.transpose(x, [0, 2, 1, 3])
         return x
 
+    
     def preprocess_torch(
-            self,
-            x: torch.Tensor,
-            mul_val: torch.Tensor = torch.FloatTensor([64.75]),
-            add_val: torch.Tensor = torch.FloatTensor([-11.949951171875]),
-        ) -> torch.Tensor:
+        self,
+        x: torch.Tensor,
+        mul_val: torch.Tensor = torch.FloatTensor([64.75055694580078]),
+        add_val: torch.Tensor = torch.FloatTensor([-11.950003623962402]),
+    ) -> torch.Tensor:
         x = x.to(torch.float32)
         x = x * mul_val + add_val
         x = x.round().clip(-128, 127)
@@ -138,12 +136,15 @@ class DXVideoEncoder():
     def postprocess_numpy(self, x: np.ndarray) -> np.ndarray:
         assert len(x.shape) == 3
         x = x[:, 0]
-        return x / np.linalg.norm(x, axis=-1, keepdims=True)
+        x = x / np.linalg.norm(x, axis=-1, keepdims=True)
+        return x
+
 
     def postprocess_torch(self, x: torch.Tensor) -> torch.Tensor:
         assert len(x.shape) == 3
         x = x[:, 0]
-        return x / torch.norm(x, dim=-1, keepdim=True)
+        x = x / torch.norm(x, dim=-1, keepdim=True)
+        return x
 
 class VideoThread(threading.Thread):
     def __init__(self, features_path, video_paths, gt_text_list):
@@ -301,7 +302,7 @@ def main():
         model_path=args.video_encoder_onnx, device=device
     )
     
-    dxnn_video_encoder = DXVideoEncoder("dxnn/pia_vit/pia_vit_240812.dxnn")
+    dxnn_video_encoder = DXVideoEncoder("dxnn/pia_vit_240814/pia_vit_240814.dxnn")
     
     token_embedder = PiaONNXTensorRTModel(
         model_path=args.token_embedder_onnx, device=device
@@ -313,55 +314,59 @@ def main():
     model_load_time_e = time.perf_counter_ns()
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
     
-    gt_video_path_list = [
-        "video9770", "video9771", "video7020", "video9773", "video7026", 
-        "video9775", "video9776", "video9778", "video9779", 
-        "video7028", "video7029", "video9772", "video7021", "video9774", 
-        "video8912", "video8910", "video8917", "video8916", 
-        "video8915", "video8914", "video8919", "video8918", "video9545"
-    ]
-    
     # gt_video_path_list = [
-    #         "0",
-    #         "1",
-    #         "2",
-    #         "3",
-    #         "4",
-    #         "5",
-    #         "6",
-    #         "7"
+    #     "video9770", "video9771", "video7020", "video9773", "video7026", 
+    #     "video9775", "video9776", "video9778", "video9779", 
+    #     "video7028", "video7029", "video9772", "video7021", "video9774", 
+    #     "video8912", "video8910", "video8917", "video8916", 
+    #     "video8915", "video8914", "video8919", "video8918", "video9545"
     # ]
     
-    gt_text_list = [ 
-        "a person is connecting something to system", 
-        "a little girl does gymnastics", 
-        "a woman creating a fondant baby and flower", 
-        "a boy plays grand theft auto 5", 
-        "a man is giving a review on a vehicle", 
-        "a man speaks to children in a classroom", 
-        "one micky mouse is talking to other", 
-        "a naked child runs through a field", 
-        "a little boy singing in front of judges and crowd", 
-        "fireworks are being lit and exploding in a night sky", 
-        "a man is singing and standing in the road", 
-        "cartoon show for kids", 
-        "some cartoon characters are moving around an area", 
-        "baseball player hits ball",  
-        "a video about different sports", 
-        "a family is having coversation", 
-        "adding ingredients to a pizza", 
-        "two men discuss social issues", 
-        "cartoons of a sponge a squid and a starfish", 
-        "person cooking up somefood", 
-        "models are walking down a short runway", 
-        "a man is talking on stage", 
-        "a hairdresser and client speak to each other with kid voices", 
-        "some one talking about top ten movies of the year"
+    gt_video_path_list = [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
     ]
     
     # gt_text_list = [ 
-    #         "sports people are fighting on field"
+    #     "a person is connecting something to system", 
+    #     "a little girl does gymnastics", 
+    #     "a woman creating a fondant baby and flower", 
+    #     "a boy plays grand theft auto 5", 
+    #     "a man is giving a review on a vehicle", 
+    #     "a man speaks to children in a classroom", 
+    #     "one micky mouse is talking to other", 
+    #     "a naked child runs through a field", 
+    #     "a little boy singing in front of judges and crowd", 
+    #     "fireworks are being lit and exploding in a night sky", 
+    #     "a man is singing and standing in the road", 
+    #     "cartoon show for kids", 
+    #     "some cartoon characters are moving around an area", 
+    #     "baseball player hits ball",  
+    #     "a video about different sports", 
+    #     "a family is having coversation", 
+    #     "adding ingredients to a pizza", 
+    #     "two men discuss social issues", 
+    #     "cartoons of a sponge a squid and a starfish", 
+    #     "person cooking up somefood", 
+    #     "models are walking down a short runway", 
+    #     "a man is talking on stage", 
+    #     "a hairdresser and client speak to each other with kid voices", 
+    #     "some one talking about top ten movies of the year"
     # ]
+    
+    gt_text_list = [ 
+            "two young childrens are fighting on the grass",
+            "sports people are fighting on field",
+            "an old man is falling on the grass",
+            "the iron is on fire",
+            "someone helps old man who is falling down."
+    ]
     
     video_thread = VideoThread(args.features_path, gt_video_path_list, gt_text_list)
     
@@ -444,13 +449,14 @@ def main():
         raw_video_data = video_thread.get_input_tensor()
         raw_video_mask_data = torch.ones(1, raw_video_data.shape[0])
         
-        video_pred = video_encoder(raw_video_data)
-        # video_pred = dxnn_video_encoder.run(raw_video_data)
+        # video_pred = video_encoder(raw_video_data)
+        video_pred = dxnn_video_encoder.run(raw_video_data)
+        
         result_logits = []
         for k in range(len(text_vector_list)):
             retrieve_logits = _loose_similarity(text_vector_list[k], video_pred, raw_video_mask_data)
             result_logits.append(retrieve_logits)
-            video_thread.update_text(k,gt_text_list[k], result_logits[k]/(j+1), -1)
+            video_thread.update_text(k,gt_text_list[k], result_logits[k], -1)
             
         if len(text_vector_list) > 0 :
             result_logits_np += np.stack(result_logits)

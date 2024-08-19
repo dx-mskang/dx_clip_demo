@@ -140,14 +140,18 @@ class DXVideoEncoder():
         self.ie = InferenceEngine(model_path)
         
     def run(self, x):
-        print("input", x.shape, x.dtype, x.min(), x.max())
-        x = self.preprocess_torch(x).numpy()
+        # print("input", x.shape, x.dtype, x.min(), x.max())
         ret = []
+        x = x.numpy()
         for i in range(x.shape[0]):
             inp = x[i:i+1]
-            print("input2", inp.shape, inp.dtype, inp.min(), inp.max())
+            inp = self.preprocess_numpy(inp)
+            inp = np.ascontiguousarray(inp)
             o = self.ie.run(inp)[0]
-            ret.append(self.postprocess_torch(torch.from_numpy(o)))
+            o = self.postprocess_numpy(o)
+            o = torch.from_numpy(o)
+            ret.append(o)
+        
         z = torch.cat(ret, dim=0)
         print(z.shape)
         print(z.dtype)
@@ -157,10 +161,10 @@ class DXVideoEncoder():
         
     def preprocess_numpy(
         self,
-        x: np.ndarray,
-        mul_val: np.ndarray = np.float32([64.75]),
-        add_val: np.ndarray = np.float32([-11.949951171875]),
-        ) -> np.ndarray:
+        x:np.ndarray,
+        mul_val: np.ndarray = np.float32([64.75055694580078]),
+        add_val: np.ndarray = np.float32([-11.950003623962402]),
+    ) -> np.ndarray:
         x = x.astype(np.float32)
         x = x * mul_val + add_val
         x = x.round().clip(-128, 127)
@@ -171,32 +175,35 @@ class DXVideoEncoder():
         x = np.transpose(x, [0, 2, 1, 3])
         return x
 
+    
     def preprocess_torch(
-            self,
-            x: torch.Tensor,
-            mul_val: torch.Tensor = torch.FloatTensor([64.75]),
-            add_val: torch.Tensor = torch.FloatTensor([-11.949951171875]),
-        ) -> torch.Tensor:
-        b = x.shape[0]
+        self,
+        x: torch.Tensor,
+        mul_val: torch.Tensor = torch.FloatTensor([64.75055694580078]),
+        add_val: torch.Tensor = torch.FloatTensor([-11.950003623962402]),
+    ) -> torch.Tensor:
         x = x.to(torch.float32)
         x = x * mul_val + add_val
         x = x.round().clip(-128, 127)
         x = x.to(torch.int8)
-        x = torch.reshape(x, [b, 3, 7, 32, 7, 32])
+        x = torch.reshape(x, [1, 3, 7, 32, 7, 32])
         x = torch.permute(x, [0, 2, 4, 3, 5, 1])
-        x = torch.reshape(x, [b, 49, 48, 64])
+        x = torch.reshape(x, [1, 49, 48, 64])
         x = torch.permute(x, [0, 2, 1, 3])
         return x
 
     def postprocess_numpy(self, x: np.ndarray) -> np.ndarray:
         assert len(x.shape) == 3
         x = x[:, 0]
-        return x / np.linalg.norm(x, axis=-1, keepdims=True)
+        x = x / np.linalg.norm(x, axis=-1, keepdims=True)
+        return x
+
 
     def postprocess_torch(self, x: torch.Tensor) -> torch.Tensor:
         assert len(x.shape) == 3
         x = x[:, 0]
-        return x / torch.norm(x, dim=-1, keepdim=True)
+        x = x / torch.norm(x, dim=-1, keepdim=True)
+        return x
     
 
 def main():
@@ -236,7 +243,7 @@ def main():
     text_encoder = PiaONNXTensorRTModel(
         model_path=args.text_encoder_onnx, device=device
     )
-    dx_video_encoder = DXVideoEncoder("dxnn/pia_vit/pia_vit_240812.dxnn")
+    dx_video_encoder = DXVideoEncoder("dxnn/pia_vit_240814/pia_vit_240814.dxnn")
     
     model_load_time_e = time.perf_counter_ns()
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
@@ -370,8 +377,8 @@ def main():
         
         video_encoder_pred_time_s = time.perf_counter_ns()
         # [11, 512]
-        video_pred = video_encoder(raw_video_data)
-        # video_pred = dx_video_encoder.run(raw_video_data)
+        # video_pred = video_encoder(raw_video_data)
+        video_pred = dx_video_encoder.run(raw_video_data)
         video_encoder_pred_time_e = time.perf_counter_ns()
         t_video_encoder.append((video_encoder_pred_time_e - video_encoder_pred_time_s) / video_pred.shape[0])
         
