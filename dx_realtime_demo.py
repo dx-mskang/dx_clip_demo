@@ -149,11 +149,16 @@ class DXVideoEncoder():
 class VideoThread(threading.Thread):
     def __init__(self, features_path, video_paths, gt_text_list):
         super().__init__()
-        self.features_path = features_path
-        self.video_paths = video_paths
+        if features_path == "0" :
+            self.video_paths = ["/dev/video0"]
+            self.current_index = 0
+            self.video_path_current = os.path.join(self.video_paths[self.current_index])
+        else :
+            self.features_path = features_path
+            self.video_paths = video_paths
+            self.current_index = 0
+            self.video_path_current = os.path.join(features_path, self.video_paths[self.current_index] + ".mp4")
         self.gt_text_list = gt_text_list
-        self.current_index = 0
-        self.video_path_current = os.path.join(features_path, video_paths[self.current_index] + ".mp4")
         self.cap = cv2.VideoCapture(self.video_path_current)
         self.stop_thread = False
         self.final_text = ""

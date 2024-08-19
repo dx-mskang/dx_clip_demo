@@ -5,6 +5,11 @@
 ```bash
 python dx_realtime_demo.py
 ```
+- 텍스트 문장 추가 : 터미널창에 문장 입력 후 enter     
+- 마지막 문장 삭제 : 터미널창에 'del' 입력 후 enter   
+- 프로그램 종료    : 터미널창에 'quit' 입력 후 enter  
+- 카메라 모드 open : python dx_realtime_demo.py --features_path 0   
+
 ### Video Demo (batch input)
 ```bash
 python dx_video_demo.py
