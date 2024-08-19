@@ -33,6 +33,7 @@ def get_args():
     parser.add_argument("--token_embedder_onnx", type=str, default="assets/onnx/embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for token embedder")
     parser.add_argument("--text_encoder_onnx", type=str, default="assets/onnx/textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for text encoder")
     parser.add_argument("--video_encoder_onnx", type=str, default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for video encoder")
+    parser.add_argument("--video_encoder_dxnn", type=str, default="pia_vit_240814.dxnn", help="ONNX file path for video encoder")
     parser.add_argument("--torch_model", type=str, default="assets/pth/clip4clip_msrvtt_b128_ep5.pth", help="pth file path for torch model")
     
     return parser.parse_args()
@@ -243,7 +244,7 @@ def main():
     text_encoder = PiaONNXTensorRTModel(
         model_path=args.text_encoder_onnx, device=device
     )
-    dx_video_encoder = DXVideoEncoder("dxnn/pia_vit_240814/pia_vit_240814.dxnn")
+    dx_video_encoder = DXVideoEncoder(args.video_encoder_dxnn)
     
     model_load_time_e = time.perf_counter_ns()
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
