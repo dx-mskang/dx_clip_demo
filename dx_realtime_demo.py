@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 import cv2
 import threading
+import heapq
 
 from dx_engine import InferenceEngine
 
@@ -24,15 +25,11 @@ def get_args():
     parser = argparse.ArgumentParser(description="Generate Similarity Matrix from ONNX files")
     
     # Dataset Path Arguments
-    parser.add_argument("--val_csv", type=str, default="assets/data/sampled/MSRVTT_JSFUSION_test_10.csv", help="CSV file path of caption labels")
-    # parser.add_argument("--features_path", type=str, default="assets/data/full/MSRVTT_Videos", help="Videos directory")
     parser.add_argument("--features_path", type=str, default="assets/demo_videos", help="Videos directory")
     
     # Dataset Configuration Arguments
-    parser.add_argument("--max_words", type=int, default=20, help="")
+    parser.add_argument("--max_words", type=int, default=32, help="")
     parser.add_argument("--feature_framerate", type=int, default=1, help="")
-    parser.add_argument("--max_frames", type=int, default=100, help="")
-    parser.add_argument("--eval_frame_order", type=int, default=0, choices=[0, 1, 2], help="Frame order, 0: ordinary order; 1: reverse order; 2: random order.")
     parser.add_argument("--slice_framepos", type=int, default=0, choices=[0, 1, 2], help="0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.")
     
     # Model Path Arguments
@@ -40,7 +37,6 @@ def get_args():
     parser.add_argument("--text_encoder_onnx", type=str, default="assets/onnx/textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for text encoder")
     parser.add_argument("--video_encoder_onnx", type=str, default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for video encoder")
     parser.add_argument("--video_encoder_dxnn", type=str, default="pia_vit_240814.dxnn", help="ONNX file path for video encoder")
-    parser.add_argument("--torch_model", type=str, default="assets/pth/clip4clip_msrvtt_b128_ep5.pth", help="pth file path for torch model")
     
     return parser.parse_args()
     # fmt: on
@@ -62,6 +58,8 @@ def insert_text_in_term():
         if input_text == "quit":
             global_quit = True
             break
+        if global_quit:
+            break
 
 def _mean_pooling_for_similarity_visual(vis_output, video_frame_mask):
     video_mask_un = video_frame_mask.to(dtype=torch.float).unsqueeze(-1)
@@ -70,7 +68,6 @@ def _mean_pooling_for_similarity_visual(vis_output, video_frame_mask):
     video_mask_un_sum[video_mask_un_sum == 0.0] = 1.0
     video_out = torch.sum(visual_output, dim=1) / video_mask_un_sum
     return video_out
-
 
 def _loose_similarity(text_vectors, video_vectors, video_frame_mask):
     sequence_output, visual_output = (
@@ -166,13 +163,20 @@ class VideoThread(threading.Thread):
         self.result_text = ""
         self.result_logit = 0.0
         self.released = False
-        self.pannel_size_w = 900 
-        self.pannel_size_h = 900
-        self.video_size_w = 640
-        self.video_size_h = 480
+        self.pannel_size_w = 1920 
+        self.pannel_size_h = 1080
+        self.video_size_w = 920
+        self.video_size_h = 690
         self.text_intervals = 30
-        self.text_pannel_frame = np.ones((self.pannel_size_w, self.pannel_size_h, 3), dtype=np.uint8) * 255
-        self.new_text_pannel_frame = np.ones((self.pannel_size_w, self.pannel_size_h, 3), dtype=np.uint8) * 255
+        self.alarm_thresh = 48
+        self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255  # 하얀색 판 
+        self.x, self.y = 20, 80
+        self.view_pannel_frame[self.y:self.y + self.video_size_w, self.x:self.x+self.video_size_w] = 0
+        self.video_roi = [self.x, self.y + 115, self.video_size_w, self.video_size_h]
+        self.terminal_roi = [self.pannel_size_w - self.x - self.video_size_w, int(self.pannel_size_h/2) + 80]
+        self.text_roi = [self.pannel_size_w - self.x - self.video_size_w, self.y + 60]
+        self.show_fps_roi = [int(self.pannel_size_w * 4 / 5), 0]
+        
         self.original = np.zeros((224, 224, 3), dtype=np.uint8)
         self.transform_ = self.transform(224)
         self.update_new_text = False
@@ -183,10 +187,14 @@ class VideoThread(threading.Thread):
         global input_text
         global global_quit
         i = 0
+        cv2.putText(self.view_pannel_frame, "   [TEXT LIST]", (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+        i+=1
         for text_i in self.gt_text_list:
-            cv2.putText(self.text_pannel_frame, "{}. ".format(i) + text_i, (5, 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
             i+=1
-        self.new_text_pannel_frame = self.text_pannel_frame.copy()
+        
+        cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
         while not self.stop_thread:
             ret, self.original = self.cap.read()
             if global_quit:
@@ -199,63 +207,61 @@ class VideoThread(threading.Thread):
                     self.video_path_current = os.path.join(self.features_path, self.video_paths[self.current_index] + ".mp4")
                     self.cap.release()
                     self.cap = cv2.VideoCapture(self.video_path_current)
-                    continue
+                    ret, self.original = self.cap.read()
                 else:
                     self.current_index= 0
                     self.video_path_current = os.path.join(self.features_path, self.video_paths[self.current_index] + ".mp4")
                     self.cap.release()
                     self.cap = cv2.VideoCapture(self.video_path_current)
-                    continue
+                    ret, self.original = self.cap.read()
             
             # 영상 위에 텍스트 추가
             frame = cv2.resize(self.original, (self.video_size_w, self.video_size_h), cv2.INTER_NEAREST)
-            cv2.rectangle(frame, (0, self.video_size_h-70), (self.video_size_w, self.video_size_h-40), (0, 0, 0), -1)
-            cv2.putText(frame, self.final_text, (10, self.video_size_h-50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+            self.view_pannel_frame[self.video_roi[1]:self.video_roi[1] + self.video_roi[3], self.video_roi[0]:self.video_roi[0]+self.video_roi[2]] = frame
             
             if self.update_new_text:
-                cv2.putText(self.text_pannel_frame, "{}. ".format(i) + self.new_text, (5, 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(self.view_pannel_frame, "   " + self.new_text, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
                 i+=1
                 self.update_new_text = False
             
             if self.pop_last_text:
                 i-=1
-                cv2.rectangle(self.text_pannel_frame, (0, 15 + (self.text_intervals * i) - 15), (self.pannel_size_w, 15 + (self.text_intervals * i) + 10), (255, 255, 255), -1)
-                self.new_text_pannel_frame = self.text_pannel_frame.copy()
+                cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] + (self.text_intervals * i) - 10), (self.pannel_size_w, self.text_roi[1] + (self.text_intervals * i) + 25), (255, 255, 255), -1)
                 self.pop_last_text = False
                 self.final_text = " "
-            cv2.namedWindow('Text')  
-            cv2.namedWindow('Video')  
-            cv2.moveWindow('Text', self.video_size_w, 0)
-            cv2.moveWindow('Video', 0, 0)
-            cv2.imshow('Text', self.new_text_pannel_frame)
-            cv2.imshow('Video', frame)
             
-            if cv2.waitKey(25) == ord('q'):
+            cv2.imshow('Video', self.view_pannel_frame)
+            
+            if cv2.waitKey(30) == ord('q'):
+                global_quit = True
+                self.released = True
                 break
-        self.released = True
         self.cap.release()
         cv2.destroyAllWindows()
     
     def stop(self):
         self.stop_thread = True
 
-    def update_text(self, argmax_index, new_text, new_logit, mode = 1):
-        self.final_text = new_text + ",  sim : {:.3}".format(new_logit[0][0])
-        cv2.rectangle(self.new_text_pannel_frame, 
-                      (0, 15 + (self.text_intervals * argmax_index) - 15), 
-                      (self.pannel_size_w, 15 + (self.text_intervals * argmax_index) + 10), (255, 255, 255), -1)
-        if mode == 1:
-            cv2.putText(self.new_text_pannel_frame, 
-                    "{}. ".format(argmax_index) + self.gt_text_list[argmax_index] 
-                    + ", sim : {:.3}".format(new_logit[0][0]), 
-                    (5, 15 + (self.text_intervals * argmax_index)), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
-        else:
-            cv2.putText(self.new_text_pannel_frame, 
-                    "{}. ".format(argmax_index) + self.gt_text_list[argmax_index] 
-                    + ", sim : {:.1}".format(new_logit[0][0]), 
-                    (5, 15 + (self.text_intervals * argmax_index)), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+    def update_text(self, text_list, logit_list, min_max_list):
+        sorted_index = np.argsort(logit_list)
+        # indices_index = sorted(sorted_index[-3:])
+        indices_index = sorted(sorted_index[-2:])
+        cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] - 10), (self.pannel_size_w, int(self.pannel_size_h/2)), (255, 255, 255), -1)
+        text_i = 0
+        for ii in indices_index:
+            min_max = min_max_list[ii]
+            ret_level = int(logit_list[ii] / (min_max[0] + min_max[1]) * 100)
+            if ret_level < self.alarm_thresh:
+                continue
+            cv2.putText(self.view_pannel_frame, 
+                    str(ret_level).rjust(3) + "%    " + text_list[ii],
+                    (self.text_roi[0] + 5, self.text_roi[1] + 15 + (self.text_intervals * text_i)), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
+            text_i+=1
+            
+    
+    def empty_text(self):
+        cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] - 10), (self.pannel_size_w, int(self.pannel_size_h/2)), (255, 255, 255), -1)
     
     def transform(self, n_px):
         return Compose([
@@ -282,10 +288,32 @@ class VideoThread(threading.Thread):
     
     def pop_text_vector(self, index):
         self.pop_last_text = True
+    
+    def update_fps(self, dxnn_time_list, sol_time_list):
+        cv2.rectangle(self.view_pannel_frame, (self.show_fps_roi[0], 0), (self.pannel_size_w, 80), (255, 255, 255), -1)
+        avg_dxnn_time = 1000/(np.average(np.stack(dxnn_time_list)) / 1000000)
+        avg_solution_time = 1000/(np.average(np.stack(sol_time_list)) / 1000000)
+        cv2.putText(self.view_pannel_frame, 
+                    "DXNN FPS : {:.2f}".format(avg_dxnn_time), 
+                    (self.show_fps_roi[0], self.show_fps_roi[1] + 55), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.7, 
+                    (0, 0, 0), 
+                    1, 
+                    cv2.LINE_AA)
+        cv2.putText(self.view_pannel_frame, 
+                    "SOLUTION FPS : {:.2f}".format(avg_solution_time), 
+                    (self.show_fps_roi[0], self.show_fps_roi[1] + 75), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.7, 
+                    (0, 0, 0), 
+                    1, 
+                    cv2.LINE_AA)
 
 
 def main():
     global input_text
+    global global_quit
     
     SPECIAL_TOKEN = {
         "CLS_TOKEN": "<|startoftext|>",
@@ -303,11 +331,6 @@ def main():
     
     model_load_time_s = time.perf_counter_ns()
     
-    # Set up ONNX Models (Used for Inference)
-    video_encoder = PiaONNXTensorRTModel(
-        model_path=args.video_encoder_onnx, device=device
-    )
-    
     dxnn_video_encoder = DXVideoEncoder(args.video_encoder_dxnn)
     
     token_embedder = PiaONNXTensorRTModel(
@@ -320,58 +343,51 @@ def main():
     model_load_time_e = time.perf_counter_ns()
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
     
-    # gt_video_path_list = [
-    #     "video9770", "video9771", "video7020", "video9773", "video7026", 
-    #     "video9775", "video9776", "video9778", "video9779", 
-    #     "video7028", "video7029", "video9772", "video7021", "video9774", 
-    #     "video8912", "video8910", "video8917", "video8916", 
-    #     "video8915", "video8914", "video8919", "video8918", "video9545"
-    # ]
-    
     gt_video_path_list = [
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7"
+        "fire_on_car",
+        "dam_explosion_short",
+        "violence_in_shopping_mall_short",
+        "gun_terrorism_in_airport",
+        "crowded_in_subway",
+        "heavy_structure_falling",
     ]
     
-    # gt_text_list = [ 
-    #     "a person is connecting something to system", 
-    #     "a little girl does gymnastics", 
-    #     "a woman creating a fondant baby and flower", 
-    #     "a boy plays grand theft auto 5", 
-    #     "a man is giving a review on a vehicle", 
-    #     "a man speaks to children in a classroom", 
-    #     "one micky mouse is talking to other", 
-    #     "a naked child runs through a field", 
-    #     "a little boy singing in front of judges and crowd", 
-    #     "fireworks are being lit and exploding in a night sky", 
-    #     "a man is singing and standing in the road", 
-    #     "cartoon show for kids", 
-    #     "some cartoon characters are moving around an area", 
-    #     "baseball player hits ball",  
-    #     "a video about different sports", 
-    #     "a family is having coversation", 
-    #     "adding ingredients to a pizza", 
-    #     "two men discuss social issues", 
-    #     "cartoons of a sponge a squid and a starfish", 
-    #     "person cooking up somefood", 
-    #     "models are walking down a short runway", 
-    #     "a man is talking on stage", 
-    #     "a hairdresser and client speak to each other with kid voices", 
-    #     "some one talking about top ten movies of the year"
-    # ]
+    gt_text_list = [
+        "The subway is crowded with people",
+        "People is crowded in the subway",
+        
+        "Heavy objects are fallen",
+        
+        "Physical confrontation occurs between two people",
+        "Violence with kicking and punching",
+        
+        "Terrorism is taking place at the airport",
+        "Terrorist is shooting at people",
+        
+        "The water is exploding out",
+        "The water is gushing out",
+        
+        "fire is coming out of the car",
+        "The car is exploding"
+    ]
     
-    gt_text_list = [ 
-            "two young childrens are fighting on the grass",
-            "sports people are fighting on field",
-            "an old man is falling on the grass",
-            "the iron is on fire",
-            "someone helps old man who is falling down."
+    gt_text_alarm_level = [
+        [0.27, 0.32],
+        [0.27, 0.32],
+        
+        [0.26, 0.27],
+        
+        [0.21, 0.24],
+        [0.24, 0.255],
+        
+        [0.28, 0.30],
+        [0.24, 0.27],
+        
+        [0.26, 0.27],
+        [0.265, 0.28],
+        
+        [0.23, 0.31],
+        [0.23, 0.31],
     ]
     
     video_thread = VideoThread(args.features_path, gt_video_path_list, gt_text_list)
@@ -380,21 +396,15 @@ def main():
     text_vector_list = []
     
     # 시간 측정
-    t_text_tokenizer_list = []
-    t_text_token_to_id = []
-    t_text_embedding = []
-    t_text_encoding = []
+    run_dxnn_time_t = []
+    run_sol_time_t = []
     for i in tqdm(range(len(gt_text_list))):
         gt_text_sample = gt_text_list[i]
         
-        tokenizer_time_s = time.perf_counter_ns()
         # Get Token,
         # ex ) "some one talking about top ten movies of the year" 
         #      -> [some, one, talking, about, top, ten, movies, of, the, year]
         gt_text_token = ClipTokenizer().tokenize(gt_text_sample)
-        
-        tokenizer_time_e = time.perf_counter_ns()
-        t_text_tokenizer_list.append(tokenizer_time_e - tokenizer_time_s)
         
         gt_text_token = [SPECIAL_TOKEN["CLS_TOKEN"]] + gt_text_token
         total_length_with_class = max_words - 1
@@ -402,13 +412,9 @@ def main():
             gt_text_token = gt_text_token[:total_length_with_class]
         gt_text_token = gt_text_token + [SPECIAL_TOKEN["SEP_TOKEN"]]
         
-        token_to_id_time_s = time.perf_counter_ns()
-        
         # 9 text ids : number of token ids
         # token to ids (using by "bpe_simple_vocab_16e6.txt.gz")
         raw_text_data = ClipTokenizer().convert_tokens_to_ids(gt_text_token)
-        token_to_id_time_e = time.perf_counter_ns()
-        t_text_token_to_id.append(token_to_id_time_e - token_to_id_time_s)
         
         text_input_mask = [1] * len(raw_text_data) + [0] * (
                     max_words - len(raw_text_data)
@@ -426,25 +432,13 @@ def main():
                         [text_input_ids], 
                         ).to(device)
         
-        
-        text_enmbedding_time_s = time.perf_counter_ns()
         # [1, 32, 512]
         text_embedding = token_embedder(text_input_ids)    
-        text_enmbedding_time_e = time.perf_counter_ns()
-        t_text_embedding.append(text_enmbedding_time_e - text_enmbedding_time_s)
         
-        text_encoder_time_s = time.perf_counter_ns()
         # [1, 512]
         text_vectors = text_encoder([text_embedding, text_input_mask])
-        text_encoder_time_e = time.perf_counter_ns()
-        t_text_encoding.append(text_encoder_time_e - text_encoder_time_s)
 
         text_vector_list.append(text_vectors)
-    
-    # 시간 측정
-    t_video_get_data = []
-    t_video_encoder = []
-    t_sim_value = []
     
     video_thread.start()
     video_path = video_thread.current_index
@@ -452,29 +446,44 @@ def main():
     result_logits_np = np.zeros((len(text_vector_list), 1, 1))
     print("Enter text to display on video (insert 'quit' to quit): ")
     while True:
+        
+        run_sol_time_s = time.perf_counter_ns()
         raw_video_data = video_thread.get_input_tensor()
         raw_video_mask_data = torch.ones(1, raw_video_data.shape[0])
         
-        # video_pred = video_encoder(raw_video_data)
+        
+        run_dxnn_time_s = time.perf_counter_ns()
+        
+        # 9 text ids : number of token ids
+        # token to ids (using by "bpe_simple_vocab_16e6.txt.gz")
+        ############################################ time
         video_pred = dxnn_video_encoder.run(raw_video_data)
+        run_dxnn_time_e = time.perf_counter_ns()
+        run_dxnn_time_t.append(run_dxnn_time_e - run_dxnn_time_s)
         
         result_logits = []
         for k in range(len(text_vector_list)):
+            ############################################ time
             retrieve_logits = _loose_similarity(text_vector_list[k], video_pred, raw_video_mask_data)
             result_logits.append(retrieve_logits)
-            video_thread.update_text(k,gt_text_list[k], result_logits[k], -1)
+        run_sol_time_e = time.perf_counter_ns()
+        run_sol_time_t.append(run_sol_time_e - run_sol_time_s)
             
         if len(text_vector_list) > 0 :
             result_logits_np += np.stack(result_logits)
-            argmax_index = np.argmax(result_logits_np / (j+1))
-            video_thread.update_text(argmax_index,gt_text_list[argmax_index], result_logits_np[argmax_index]/(j+1))
+            video_thread.update_text(gt_text_list, result_logits_np[:,0,0]/(j+1), gt_text_alarm_level)
+        else:
+            video_thread.empty_text()
+            
         # print("max retrieve_logits = {}, argmax = {}".format(result_logits_np[argmax_index]/(j+1), argmax_index))
+        
         if input_text == "del":
             j = 0
             if len(text_vector_list) > 0:
                 text_vector_list.pop(-1)
                 result_logits_np = np.zeros((len(text_vector_list), 1, 1))
                 gt_text_list.pop(-1)
+                gt_text_alarm_level.pop(-1)
                 video_thread.pop_text_vector(-1)
             input_text = ""
         elif input_text != "":
@@ -507,14 +516,16 @@ def main():
             result_logits_np = np.zeros((len(text_vector_list), 1, 1))
             video_thread.update_text_vector(input_text)
             gt_text_list.append(input_text)
+            gt_text_alarm_level.append([0.23, 0.31])
             input_text = ""
         j += 1
         if(video_thread.current_index != video_path):
             j = 0
             if len(text_vector_list) > 0 :
                 result_logits_np = np.zeros((len(text_vector_list), 1, 1))
-        if video_thread.released:
+        if video_thread.released or global_quit:
             break
+        video_thread.update_fps(run_dxnn_time_t, run_sol_time_t)
     
     # # print Profile
     # avg_t_text_tokenizer_list = np.average(np.stack(t_text_tokenizer_list))
@@ -522,15 +533,15 @@ def main():
     # avg_t_text_embedding = np.average(np.stack(t_text_embedding))
     # avg_t_text_encoding = np.average(np.stack(t_text_encoding))
     
-    # avg_t_video_encoder = np.average(np.stack(t_video_encoder))
-    # avg_t_sim_value = np.average(np.stack(t_sim_value))
+    avg_run_dxnn_time = np.average(np.stack(run_dxnn_time_t))
+    avg_run_sol_time = np.average(np.stack(run_sol_time_t))
     
-    # print("\n")
+    print("\n")
     # print("** Average of text tokenizer = {} ns".format(avg_t_text_tokenizer_list))
     # print("** Average of text token to ids = {} ns".format(avg_t_text_token_to_id))
-    # print("** Average of text embedding = {} ns".format(avg_t_text_embedding))
-    # print("** Average of text encoding = {} ns".format(avg_t_text_encoding))
-    # print("\n")
+    print("** Average of dxnn running = {} ns".format(avg_run_dxnn_time))
+    print("** Average of solution running = {} ns".format(avg_run_sol_time))
+    print("\n")
     
     # print("** Average of get video encoded data for 30 frames = {} ns".format(avg_t_video_encoder))
     # print("** Average of calculation similarity = {} ns".format(avg_t_sim_value))
