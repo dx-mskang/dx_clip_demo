@@ -464,6 +464,12 @@ def main():
     result_logits_np = np.zeros((len(text_vector_list), 1, 1))
     print("Enter text to display on video (insert 'quit' to quit): ")
     while True:
+        # initialize result_logits_np
+        if video_thread.video_paths.__len__() <= 1 or video_thread.current_index != video_path:
+            j = 0
+            if len(text_vector_list) > 0 :
+                result_logits_np = np.zeros((len(text_vector_list), 1, 1))
+            video_path = video_thread.current_index
         
         run_sol_time_s = time.perf_counter_ns()
         raw_video_data = video_thread.get_input_tensor()
@@ -537,10 +543,7 @@ def main():
             gt_text_alarm_level.append([0.23, 0.31])
             input_text = ""
         j += 1
-        if(video_thread.current_index != video_path):
-            j = 0
-            if len(text_vector_list) > 0 :
-                result_logits_np = np.zeros((len(text_vector_list), 1, 1))
+
         if video_thread.released or global_quit:
             break
         video_thread.update_fps(run_dxnn_time_t, run_sol_time_t)
