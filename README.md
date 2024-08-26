@@ -70,10 +70,21 @@ pip install pia-1.3.1obf-py3-none-any.whl
 pip install sub_clip4clip-1.2.3obf-py3-none-any.whl
 ```
 
-## 4. Install `onnxruntime-gpu`
-The way to install the `onnxruntim-gpu` depends on the CUDA version(https://onnxruntime.ai/docs/install/)
+## 4. Install `onnxruntime`
+The way to install the `onnxruntim`(or `onnxruntim-gpu` depends on the CUDA version(https://onnxruntime.ai/docs/install/))
 
-4.1. Check your CUDA version.
+4.2. Install the `onnxruntime` 
+4.2.1.
+For CPU:
+```
+pip install onnxruntime
+```
+
+4.2.2. Install the `onnxruntime-gpu` depending on your CUDA version.
+- P.S: If you are using a GPU, you can install `onnxruntime-gpu` as shown below.
+
+For GPU:
+Check your CUDA version.
 ```bash
 $ nvcc -V
 nvcc: NVIDIA (R) Cuda compiler driver
@@ -81,14 +92,11 @@ Copyright (c) 2005-2023 NVIDIA Corporation
 Built on Tue_Aug_15_22:02:13_PDT_2023
 Cuda compilation tools, release 12.2, V12.2.140
 Build cuda_12.2.r12.2/compiler.33191640_0
-
 ```
-
-4.2. Install the `onnxruntime-gpu` depending on your CUDA version.
 
 For `CUDA-11.x`:
 ```
-pip install onnxtuntime-gpu
+pip install onnxruntime-gpu
 ```
 
 For `CUDA-12.x`:
