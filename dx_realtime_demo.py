@@ -169,6 +169,10 @@ class VideoThread(threading.Thread):
         self.video_size_h = 690
         self.text_intervals = 30
         self.alarm_thresh = 48
+        self.last_update_time_text = 0  # Initialize the last update time
+        self.update_interval_text = 0.5  # Set update interval to 0.5 seconds (adjust as needed)
+        self.last_update_time_fps = 0  # Initialize the last update time
+        self.update_interval_fps = 0.2  # Set update interval to 0.2 seconds (adjust as needed)
         self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255  # 하얀색 판 
         self.x, self.y = 20, 80
         self.view_pannel_frame[self.y:self.y + self.video_size_w, self.x:self.x+self.video_size_w] = 0
@@ -193,8 +197,8 @@ class VideoThread(threading.Thread):
             cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
             i+=1
         
-        cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
-        cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        cv2.namedWindow('Video', cv2.WND_PROP_AUTOSIZE)
+        cv2.setWindowProperty('Video', cv2.WND_PROP_AUTOSIZE, cv2.WND_PROP_AUTOSIZE)
         while not self.stop_thread:
             ret, self.original = self.cap.read()
             if global_quit:
@@ -243,6 +247,11 @@ class VideoThread(threading.Thread):
         self.stop_thread = True
 
     def update_text(self, text_list, logit_list, min_max_list):
+        # Apply throttling: Skip update if the defined interval has not passed since the last update
+        current_time_text = time.time()
+        if current_time_text - self.last_update_time_text < self.update_interval_text:
+            return
+
         sorted_index = np.argsort(logit_list)
         # indices_index = sorted(sorted_index[-3:])
         indices_index = sorted(sorted_index[-2:])
@@ -258,8 +267,10 @@ class VideoThread(threading.Thread):
                     (self.text_roi[0] + 5, self.text_roi[1] + 15 + (self.text_intervals * text_i)), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
             text_i+=1
-            
-    
+
+        # Update the last update time to the current time
+        self.last_update_time_text = current_time_text
+
     def empty_text(self):
         cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] - 10), (self.pannel_size_w, int(self.pannel_size_h/2)), (255, 255, 255), -1)
     
@@ -290,6 +301,11 @@ class VideoThread(threading.Thread):
         self.pop_last_text = True
     
     def update_fps(self, dxnn_time_list, sol_time_list):
+        # Apply throttling: Skip update if the defined interval has not passed since the last update
+        current_time_fps = time.time()
+        if current_time_fps - self.last_update_time_fps < self.update_interval_fps:
+            return
+
         cv2.rectangle(self.view_pannel_frame, (self.show_fps_roi[0], 0), (self.pannel_size_w, 80), (255, 255, 255), -1)
         avg_dxnn_time = 1000/(np.average(np.stack(dxnn_time_list)) / 1000000)
         avg_solution_time = 1000/(np.average(np.stack(sol_time_list)) / 1000000)
@@ -310,6 +326,8 @@ class VideoThread(threading.Thread):
                     1, 
                     cv2.LINE_AA)
 
+        # Update the last update time to the current time
+        self.last_update_time_fps = current_time_fps
 
 def main():
     global input_text
