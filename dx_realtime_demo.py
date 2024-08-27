@@ -167,9 +167,12 @@ class VideoThread(threading.Thread):
         self.pannel_size_h = 1080
         self.video_size_w = 920
         self.video_size_h = 690
-        self.text_intervals = 30
-        self.alarm_thresh = 48
-        self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255  # 하얀색 판 
+        self.text_intervals = 40
+        self.last_update_time_text = 0  # Initialize the last update time
+        self.update_interval_text = 1  # Set update interval to 1 seconds (adjust as needed)
+        self.last_update_time_fps = 0  # Initialize the last update time
+        self.update_interval_fps = 0.3  # Set update interval to 0.3 seconds (adjust as needed)
+        self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255  # 하얀색 판
         self.x, self.y = 20, 80
         self.view_pannel_frame[self.y:self.y + self.video_size_w, self.x:self.x+self.video_size_w] = 0
         self.video_roi = [self.x, self.y + 115, self.video_size_w, self.video_size_h]
@@ -183,6 +186,8 @@ class VideoThread(threading.Thread):
         self.pop_last_text = False
         self.new_text = ""
 
+        self.debug_mode = False
+
     def run(self):
         global input_text
         global global_quit
@@ -192,9 +197,14 @@ class VideoThread(threading.Thread):
         for text_i in self.gt_text_list:
             cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
             i+=1
-        
-        cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
-        cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+        wnd_prop_id = cv2.WND_PROP_FULLSCREEN
+        wnd_prop_value = cv2.WINDOW_FULLSCREEN
+        if self.debug_mode:
+            wnd_prop_value = cv2.WINDOW_KEEPRATIO
+
+        cv2.namedWindow('Video', wnd_prop_id)
+        cv2.setWindowProperty('Video', wnd_prop_id, wnd_prop_value)
         while not self.stop_thread:
             ret, self.original = self.cap.read()
             if global_quit:
@@ -242,24 +252,57 @@ class VideoThread(threading.Thread):
     def stop(self):
         self.stop_thread = True
 
-    def update_text(self, text_list, logit_list, min_max_list):
+    def update_text(self, text_list, logit_list, gt_text_alarm_level):
+        # Apply throttling: Skip update if the defined interval has not passed since the last update
+        current_time_text = time.time()
+        if current_time_text - self.last_update_time_text < self.update_interval_text:
+            return
+
         sorted_index = np.argsort(logit_list)
         # indices_index = sorted(sorted_index[-3:])
         indices_index = sorted(sorted_index[-2:])
         cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] - 10), (self.pannel_size_w, int(self.pannel_size_h/2)), (255, 255, 255), -1)
         text_i = 0
         for ii in indices_index:
-            min_max = min_max_list[ii]
-            ret_level = int(logit_list[ii] / (min_max[0] + min_max[1]) * 100)
-            if ret_level < self.alarm_thresh:
-                continue
+            value = logit_list[ii]
+            min_value = gt_text_alarm_level[ii][0]
+            max_value = gt_text_alarm_level[ii][1]
+            alarm_threshold = gt_text_alarm_level[ii][2]
+
+            if value < min_value:
+                ret_level = 0
+            elif value > max_value:
+                ret_level = 100
+            else:
+                ret_level = int((value - min_value) / (max_value - min_value) * 100)
+
+            if value < alarm_threshold:
+                text_color = (0, 0, 0)
+                if self.debug_mode is False:
+                    continue
+            else:
+                text_color = (0, 0, 255)
+
+            font_scale = 1.0
+            result_str = text_list[ii]
+            line_type = cv2.LINE_8
+            thickness = 2
+            if self.debug_mode:
+                font_scale = 0.7
+                result_str = str(ret_level).rjust(3) + "%  |  " + "{:.3f}".format(value) + "  |  " + result_str
+                line_type = cv2.LINE_AA
+                thickness = 1
+                self.text_intervals = 30
+
             cv2.putText(self.view_pannel_frame, 
-                    str(ret_level).rjust(3) + "%    " + text_list[ii],
+                    result_str,
                     (self.text_roi[0] + 5, self.text_roi[1] + 15 + (self.text_intervals * text_i)), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness, line_type)
             text_i+=1
-            
-    
+
+        # Update the last update time to the current time
+        self.last_update_time_text = current_time_text
+
     def empty_text(self):
         cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] - 10), (self.pannel_size_w, int(self.pannel_size_h/2)), (255, 255, 255), -1)
     
@@ -290,6 +333,11 @@ class VideoThread(threading.Thread):
         self.pop_last_text = True
     
     def update_fps(self, dxnn_time_list, sol_time_list):
+        # Apply throttling: Skip update if the defined interval has not passed since the last update
+        current_time_fps = time.time()
+        if current_time_fps - self.last_update_time_fps < self.update_interval_fps:
+            return
+
         cv2.rectangle(self.view_pannel_frame, (self.show_fps_roi[0], 0), (self.pannel_size_w, 80), (255, 255, 255), -1)
         avg_dxnn_time = 1000/(np.average(np.stack(dxnn_time_list)) / 1000000)
         avg_solution_time = 1000/(np.average(np.stack(sol_time_list)) / 1000000)
@@ -310,9 +358,12 @@ class VideoThread(threading.Thread):
                     1, 
                     cv2.LINE_AA)
 
+        # Update the last update time to the current time
+        self.last_update_time_fps = current_time_fps
 
 def main():
     global input_text
+    global result_logits_np
     global global_quit
     
     SPECIAL_TOKEN = {
@@ -342,7 +393,7 @@ def main():
     
     model_load_time_e = time.perf_counter_ns()
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
-    
+
     gt_video_path_list = [
         "fire_on_car",
         "dam_explosion_short",
@@ -351,7 +402,7 @@ def main():
         "crowded_in_subway",
         "heavy_structure_falling",
     ]
-    
+
     gt_text_list = [
         "The subway is crowded with people",
         "People is crowded in the subway",
@@ -367,27 +418,27 @@ def main():
         "The water is exploding out",
         "The water is gushing out",
         
-        "fire is coming out of the car",
-        "The car is exploding"
+        "Fire is coming out of the car",
+        "The car is exploding",
     ]
     
     gt_text_alarm_level = [
-        [0.27, 0.32],
-        [0.27, 0.32],
+        [0.27, 0.29, 0.28],      # "The subway is crowded with people",
+        [0.27, 0.29, 0.28],      # "People is crowded in the subway",
         
-        [0.26, 0.27],
+        [0.21, 0.25, 0.225],     # "Heavy objects are fallen",
         
-        [0.21, 0.24],
-        [0.24, 0.255],
+        [0.23, 0.25, 0.24],      # "Physical confrontation occurs between two people",
+        [0.22, 0.25, 0.23],      # "Violence with kicking and punching",
         
-        [0.28, 0.30],
-        [0.24, 0.27],
+        [0.27, 0.29, 0.28],       # "Terrorism is taking place at the airport",
+        [0.23, 0.26, 0.247],       # "Terrorist is shooting at people",
         
-        [0.26, 0.27],
-        [0.265, 0.28],
+        [0.24, 0.28, 0.255],       # "The water is exploding out",
+        [0.24, 0.28, 0.255],      # "The water is gushing out",
         
-        [0.23, 0.31],
-        [0.23, 0.31],
+        [0.23, 0.26, 0.24],     # "Fire is coming out of the car",
+        [0.24, 0.28, 0.26],   # "The car is exploding",
     ]
     
     video_thread = VideoThread(args.features_path, gt_video_path_list, gt_text_list)
@@ -446,6 +497,12 @@ def main():
     result_logits_np = np.zeros((len(text_vector_list), 1, 1))
     print("Enter text to display on video (insert 'quit' to quit): ")
     while True:
+        # initialize result_logits_np
+        if video_thread.video_paths.__len__() <= 1 or video_thread.current_index != video_path:
+            j = 0
+            if len(text_vector_list) > 0 :
+                result_logits_np = np.zeros((len(text_vector_list), 1, 1))
+            video_path = video_thread.current_index
         
         run_sol_time_s = time.perf_counter_ns()
         raw_video_data = video_thread.get_input_tensor()
@@ -516,13 +573,10 @@ def main():
             result_logits_np = np.zeros((len(text_vector_list), 1, 1))
             video_thread.update_text_vector(input_text)
             gt_text_list.append(input_text)
-            gt_text_alarm_level.append([0.23, 0.31])
+            gt_text_alarm_level.append([0.23, 0.31, 0.26])
             input_text = ""
         j += 1
-        if(video_thread.current_index != video_path):
-            j = 0
-            if len(text_vector_list) > 0 :
-                result_logits_np = np.zeros((len(text_vector_list), 1, 1))
+
         if video_thread.released or global_quit:
             break
         video_thread.update_fps(run_dxnn_time_t, run_sol_time_t)
