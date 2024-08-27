@@ -286,7 +286,12 @@ class VideoThread(threading.Thread):
         
         self.video_mask = torch.ones(1, 1)
         
-
+        self.last_update_time = 0
+        self.interval_update_time = 1
+        
+        self.dxnn_fps = 0
+        self.sol_fps = 0
+        
     def run(self):
         global global_input
         global global_quit
@@ -303,13 +308,30 @@ class VideoThread(threading.Thread):
                 position = vCap.position
                 vCap_imshow_size = vCap.imshow_size
                 self.view_pannel_frame[position[1]:position[1]+vCap_imshow_size[1], position[0]:position[0]+vCap_imshow_size[0]] = vCap.get_resized_frame()
-                
+            
+            if self.sol_fps > 0 and self.dxnn_fps > 0:
+                cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
+                              (0, 0, 0), -1)
+                cv2.putText(self.view_pannel_frame, "solution  : {} FPS".format(int(self.sol_fps)),
+                            (VIEWER_TOT_SIZE_W - 450, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA
+                            )
+                cv2.putText(self.view_pannel_frame,  "dxnn     : {} FPS".format(int(self.dxnn_fps)),
+                            (VIEWER_TOT_SIZE_W - 450, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA
+                            )
             cv2.imshow('Video', self.view_pannel_frame)
             
             if cv2.waitKey(1) == ord('q'):
                 global_quit = True
                 break
         cv2.destroyAllWindows()
+    
+    def update_fps(self, dxnn_fps, sol_fps):
+        current_update_time = time.time()
+        if current_update_time - self.last_update_time < self.interval_update_time:
+            return
+        self.dxnn_fps = dxnn_fps
+        self.sol_fps = sol_fps
+        self.last_update_time = current_update_time
     
     # def text_pop(self, mode: int):
     #     self.text_vector_list.pop(-1)
@@ -326,7 +348,7 @@ class VideoThread(threading.Thread):
             
 
 class DXEngineRun(threading.Thread):
-    def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List):
+    def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List, video_viewer: VideoThread):
         super().__init__()
         self.text_list = text_list
         self.text_alarm_level_list = text_alarm_level_list
@@ -335,6 +357,7 @@ class DXEngineRun(threading.Thread):
         self.video_encoder = video_encoder
         self.text_vectors = text_vectors
         self.video_mask = torch.ones(1, 1)
+        self.video_viewer = video_viewer
     
     def transform(self, n_px):
         return Compose([
@@ -352,6 +375,7 @@ class DXEngineRun(threading.Thread):
         frame_count = 0
         while not global_quit:
             for index in range(len(self.video_threads)):
+                s = time.perf_counter_ns()
                 similarity_list = []
                 vCap = self.video_threads[index]
                 if vCap.status_video_source():
@@ -359,15 +383,20 @@ class DXEngineRun(threading.Thread):
                     vCap.last_update_time = 0
                     frame_count = 0
                 frame = vCap.current_original_frame.copy()
+                dxnn_s = time.perf_counter_ns()
                 input_data = self.image_transform(Image.fromarray(frame).convert("RGB"))
                 video_pred = self.video_encoder.run(input_data)[0]
+                dxnn_e = time.perf_counter_ns()
                 # print(index, " : ", video_pred.shape)
                 for text_index in range(len(self.text_vectors)):
                     ret = _loose_similarity(self.text_vectors[text_index], video_pred, self.video_mask)
                     similarity_list.append(ret)
                 similarity_list = np.stack(similarity_list).reshape(len(self.text_vectors))
                 vCap.similarity_list += similarity_list
-            
+                e = time.perf_counter_ns()
+                dxnn_fps = 1000/((dxnn_e - dxnn_s) / 1000000)
+                sol_fps = 1000/((e - s) / 1000000)
+                self.video_viewer.update_fps(dxnn_fps, sol_fps)
             for index in range(len(self.video_threads)):
                 vCap = self.video_threads[index]
                 vCap.update(self.text_list, vCap.similarity_list/(frame_count+1), self.text_alarm_level_list)
@@ -491,7 +520,7 @@ def main():
     
     text_vector_list = get_text_vectors(gt_text_list, token_embedder, text_encoder)
     video_thread = VideoThread(gt_text_list, video_threads)
-    dxnn_engine = DXEngineRun(gt_text_list, video_threads, text_vector_list, dxnn_video_encoder, gt_text_alarm_level)
+    dxnn_engine = DXEngineRun(gt_text_list, video_threads, text_vector_list, dxnn_video_encoder, gt_text_alarm_level, video_thread)
     video_thread.start()
     dxnn_engine.start()
     
