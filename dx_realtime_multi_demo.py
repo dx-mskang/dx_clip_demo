@@ -1,0 +1,516 @@
+import argparse
+import os
+import sys
+import time
+
+import numpy as np
+import torch
+from PIL import Image
+from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
+from pia.model import PiaONNXTensorRTModel
+from sub_clip4clip.modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
+from tqdm import tqdm
+
+import cv2
+import threading
+import time
+
+from typing import Dict, List, Tuple
+
+from dx_engine import InferenceEngine
+
+VIEWER_TOT_SIZE_W = 3840 
+VIEWER_TOT_SIZE_H = 2160
+
+SPECIAL_TOKEN = {
+    "CLS_TOKEN": "<|startoftext|>",
+    "SEP_TOKEN": "<|endoftext|>",
+    "MASK_TOKEN": "[MASK]",
+    "UNK_TOKEN": "[UNK]",
+    "PAD_TOKEN": "[PAD]",
+}
+MAX_WORDS = 32
+DEVICE = "cpu"
+
+global_input = ""
+global_quit = False
+
+def get_args():
+    # fmt: off
+    parser = argparse.ArgumentParser(description="Generate Similarity Matrix from ONNX files")
+    
+    # Dataset Path Arguments
+    parser.add_argument("--features_path", type=str, default="assets/demo_videos", help="Videos directory")
+    
+    # Dataset Configuration Arguments
+    parser.add_argument("--max_words", type=int, default=32, help="")
+    parser.add_argument("--feature_framerate", type=int, default=1, help="")
+    parser.add_argument("--slice_framepos", type=int, default=0, choices=[0, 1, 2], help="0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.")
+    
+    # Model Path Arguments
+    parser.add_argument("--token_embedder_onnx", type=str, default="assets/onnx/embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for token embedder")
+    parser.add_argument("--text_encoder_onnx", type=str, default="assets/onnx/textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for text encoder")
+    parser.add_argument("--video_encoder_onnx", type=str, default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for video encoder")
+    parser.add_argument("--video_encoder_dxnn", type=str, default="pia_vit_240814.dxnn", help="ONNX file path for video encoder")
+    
+    return parser.parse_args()
+    # fmt: on
+
+def insert_text_in_term():
+    global global_input
+    global global_quit
+    while True:
+        global_input = input("Enter text to display on video (insert 'quit' to quit): ")
+        if global_input == "quit":
+            global_quit = True
+            break
+        if global_quit:
+            break
+
+def _mean_pooling_for_similarity_visual(vis_output, video_frame_mask):
+    video_mask_un = video_frame_mask.to(dtype=torch.float).unsqueeze(-1)
+    visual_output = vis_output * video_mask_un
+    video_mask_un_sum = torch.sum(video_mask_un, dim=1, dtype=torch.float)
+    video_mask_un_sum[video_mask_un_sum == 0.0] = 1.0
+    video_out = torch.sum(visual_output, dim=1) / video_mask_un_sum
+    return video_out
+
+def _loose_similarity(text_vectors, video_vectors, video_frame_mask):
+    sequence_output, visual_output = (
+            text_vectors.contiguous(),
+            video_vectors.contiguous(),
+        )
+    visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True)
+    visual_output = _mean_pooling_for_similarity_visual(
+        visual_output, video_frame_mask
+    )
+    visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True)
+
+    sequence_output = sequence_output.squeeze(1)
+    sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True)
+    retrieve_logits = torch.matmul(sequence_output, visual_output.t())
+    return retrieve_logits
+
+def get_text_vectors(text_list:List[str], embedder, encoder):
+    ret = []
+    for i in tqdm(range(len(text_list))):
+        text = text_list[i]
+        token = ClipTokenizer().tokenize(text)
+        token = [SPECIAL_TOKEN["CLS_TOKEN"]] + token
+        total_length_with_class = MAX_WORDS - 1
+        if len(token) > total_length_with_class:
+            token = token[:total_length_with_class]
+        token = token + [SPECIAL_TOKEN["SEP_TOKEN"]]
+        token_ids = ClipTokenizer().convert_tokens_to_ids(token)
+        token_ids_mask = [1] * len(token_ids) + [0] * (
+                            MAX_WORDS - len(token_ids)
+                        )
+        token_ids = token_ids + [0] * (
+                            MAX_WORDS - len(token_ids)
+                        )
+        token_ids_mask = torch.tensor([token_ids_mask]).to(DEVICE, dtype=torch.float32)
+        token_ids = torch.tensor([token_ids]).to(DEVICE)
+        text_embedding = embedder(token_ids)
+        text_vectors = encoder([text_embedding, token_ids_mask])
+        ret.append(text_vectors)
+    return ret if len(ret) > 1 else text_vectors
+
+class DXVideoEncoder():
+    def __init__(self, model_path: str):
+        self.ie = InferenceEngine(model_path)
+        
+    def run(self, x):
+        x = x.numpy()
+        x = self.preprocess_numpy(x)
+        x = np.ascontiguousarray(x)
+        o = self.ie.run(x)[0]
+        o = self.postprocess_numpy(o)
+        o = torch.from_numpy(o)
+        return o
+                
+    def preprocess_numpy(
+        self,
+        x:np.ndarray,
+        mul_val: np.ndarray = np.float32([64.75055694580078]),
+        add_val: np.ndarray = np.float32([-11.950003623962402]),
+    ) -> np.ndarray:
+        x = x.astype(np.float32)
+        x = x * mul_val + add_val
+        x = x.round().clip(-128, 127)
+        x = x.astype(np.int8)
+        x = np.reshape(x, [1, 3, 7, 32, 7, 32])
+        x = np.transpose(x, [0, 2, 4, 3, 5, 1])
+        x = np.reshape(x, [1, 49, 48, 64])
+        x = np.transpose(x, [0, 2, 1, 3])
+        return x
+
+    def postprocess_numpy(self, x: np.ndarray) -> np.ndarray:
+        assert len(x.shape) == 3
+        x = x[:, 0]
+        x = x / np.linalg.norm(x, axis=-1, keepdims=True)
+        return x
+
+class SingleVideoThread(threading.Thread):
+    def __init__(self, base_path: str, video_path_list: List[str], position: Tuple, imshow_size: Tuple):
+        super().__init__()
+        ## SETTING
+        self.input_size = 224
+        self.imshow_size = imshow_size
+        self.npu_preprocess_mul_val = np.float32([64.75055694580078])
+        self.npu_preprocess_add_val = np.float32([-11.950003623962402])
+        self.last_update_time = 0
+        self.interval_update_time = 1
+        
+        if video_path_list[0] == "/dev/video0":
+            self.base_path = ""
+            self.video_paths = ["/dev/video0"]
+            self.current_index = 0
+            self.video_path_current = os.path.join(self.video_paths[self.current_index])
+        else:
+            self.base_path = base_path
+            self.video_paths = video_path_list
+            self.current_index = 0
+            self.video_path_current = os.path.join(self.base_path, self.video_paths[self.current_index] + ".mp4")
+
+        self.cap = cv2.VideoCapture(self.video_path_current)
+        self.current_original_frame = np.zeros((self.imshow_size[1], self.imshow_size[0], 3), dtype=np.uint8)  # 검정색 판 
+        self.current_original_frame = self.cap.read()
+        self.position = position
+        self.transform_ = self.transform(224)
+
+        self.video_source_updated = False
+        
+        self.similarity_list = []
+        self.this_argmax_text = []
+    
+    def transform(self, n_px):
+        return Compose([
+            Resize(n_px, interpolation=Image.BICUBIC),
+            CenterCrop(n_px),
+            lambda image: image.convert("RGB"),
+            ToTensor(),
+            Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+        ])
+        
+    def run(self):
+        global global_quit
+        global global_input
+        self.get_cap()
+        while not global_quit:
+            self.get_cap()
+            time.sleep(0.033)
+            if global_quit:
+                break
+            
+        self.cap.release()
+        
+    
+    def get_cap(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.current_index = 0 if self.current_index + 1 == len(self.video_paths) else self.current_index + 1
+            self.video_path_current = os.path.join(self.base_path, self.video_paths[self.current_index] + ".mp4")
+            self.cap.release()
+            self.cap = cv2.VideoCapture(self.video_path_current)
+            ret, frame = self.cap.read()
+            self.video_source_updated = True
+        self.current_original_frame = frame
+    
+    def get_resized_frame(self):
+        resized_frame = cv2.resize(self.current_original_frame, self.imshow_size, cv2.INTER_LINEAR)
+        if len(self.this_argmax_text) > 0:
+            for t in range(len(self.this_argmax_text)):
+                try:
+                    cv2.rectangle(resized_frame, (20, self.imshow_size[1] - 120 + (40 * t)), (self.imshow_size[0]-20, self.imshow_size[1] - 80 + (40 * t)), (0, 0, 0), -1)
+                    cv2.putText(resized_frame, 
+                                self.this_argmax_text[t], 
+                                (50, self.imshow_size[1] - 90 + (40 * t)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                except Exception as e:
+                    pass
+        return resized_frame
+    
+    def status_video_source(self):
+        ret = self.video_source_updated
+        self.video_source_updated = False
+        return ret
+    
+    def update(self, text_list, logit_list, alarm_list):
+        current_update_time = time.time()
+        if current_update_time - self.last_update_time < self.interval_update_time:
+            return
+        argmax_text = []
+        sorted_index = np.argsort(logit_list)
+        indices_index = np.array(sorted(sorted_index[-2:]))
+        for t in indices_index:
+            value = logit_list[t]
+            min_value = alarm_list[t][0]
+            max_value = alarm_list[t][1]
+            alarm_threshold = alarm_list[t][2]
+            if value < min_value:
+                ret_level = 0
+            elif value > max_value:
+                ret_level = 100
+            else:
+                ret_level = int((value - min_value) / (max_value - min_value) * 100)
+            if value > alarm_threshold:
+                # print(value, ", ", alarm_threshold)
+                argmax_text.append(text_list[t])
+        self.this_argmax_text = argmax_text
+        self.last_update_time = current_update_time
+
+
+# 일단 9채널 3 by 3 UI 구성해보자구
+class VideoThread(threading.Thread):
+    def __init__(self, gt_text_list: List[str], video_threads: List[SingleVideoThread]):
+        super().__init__()
+        self.gt_text_list = gt_text_list
+        self.video_threads = video_threads
+        self.stop_thread = False
+        self.final_text = ""
+        self.result_text = ""
+        self.result_logit = 0.0
+        self.released = False
+        self.text_intervals = 30
+        self.alarm_thresh = 48
+        self.x, self.y = 20, 80
+        self.view_pannel_frame = np.zeros((VIEWER_TOT_SIZE_H, VIEWER_TOT_SIZE_W, 3), dtype=np.uint8)  # 검정색 판 
+        self.show_fps_roi = [int(VIEWER_TOT_SIZE_W * 4 / 5), 0]
+
+        # text list update setting values        
+        self.update_new_text = False
+        self.pop_last_text = False
+        self.new_text = ""
+        
+        self.thread_length = len(video_threads)
+        
+        self.video_mask = torch.ones(1, 1)
+        
+
+    def run(self):
+        global global_input
+        global global_quit
+        for thread in self.video_threads:
+            thread.start()
+            thread.similarity_list = np.zeros((len(self.gt_text_list)))
+        
+        inf_count = 0
+        
+        cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        while not global_quit:
+            for vCap in self.video_threads:
+                position = vCap.position
+                vCap_imshow_size = vCap.imshow_size
+                self.view_pannel_frame[position[1]:position[1]+vCap_imshow_size[1], position[0]:position[0]+vCap_imshow_size[0]] = vCap.get_resized_frame()
+                
+            cv2.imshow('Video', self.view_pannel_frame)
+            
+            if cv2.waitKey(1) == ord('q'):
+                global_quit = True
+                break
+        cv2.destroyAllWindows()
+    
+    # def text_pop(self, mode: int):
+    #     self.text_vector_list.pop(-1)
+    #     self.gt_text_list.pop(-1)
+    #     self.result_logits_each_videos = self.result_logits_each_videos[:,:-1]
+    
+    # def text_update(self, new_text: str, new_text_vector):
+    #     self.gt_text_list.append(new_text)
+    #     self.text_vector_list.append(new_text_vector)
+    #     self.result_logits_each_videos = np.append(self.result_logits_each_videos, np.zeros((self.thread_length, 1), dtype=np.float32), axis=1)
+    
+    # def result_logits_clear(self, index):
+    #     self.result_logits_each_videos[index,:] = np.zeros_like(self.result_logits_each_videos[index,:],dtype=np.float32)
+            
+
+class DXEngineRun(threading.Thread):
+    def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List):
+        super().__init__()
+        self.text_list = text_list
+        self.text_alarm_level_list = text_alarm_level_list
+        self.video_threads = video_threads
+        self.image_transform = self.transform(224)
+        self.video_encoder = video_encoder
+        self.text_vectors = text_vectors
+        self.video_mask = torch.ones(1, 1)
+    
+    def transform(self, n_px):
+        return Compose([
+            Resize(n_px, interpolation=Image.BICUBIC),
+            CenterCrop(n_px),
+            lambda image: image.convert("RGB"),
+            ToTensor(),
+            Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+        ])
+
+    def run(self):
+        global global_quit
+        global global_input
+        time.sleep(0.1)
+        frame_count = 0
+        while not global_quit:
+            for index in range(len(self.video_threads)):
+                similarity_list = []
+                vCap = self.video_threads[index]
+                if vCap.status_video_source():
+                    vCap.similarity_list = np.zeros((len(self.text_list)))
+                    vCap.last_update_time = 0
+                    frame_count = 0
+                frame = vCap.current_original_frame.copy()
+                input_data = self.image_transform(Image.fromarray(frame).convert("RGB"))
+                video_pred = self.video_encoder.run(input_data)[0]
+                # print(index, " : ", video_pred.shape)
+                for text_index in range(len(self.text_vectors)):
+                    ret = _loose_similarity(self.text_vectors[text_index], video_pred, self.video_mask)
+                    similarity_list.append(ret)
+                similarity_list = np.stack(similarity_list).reshape(len(self.text_vectors))
+                vCap.similarity_list += similarity_list
+            
+            for index in range(len(self.video_threads)):
+                vCap = self.video_threads[index]
+                vCap.update(self.text_list, vCap.similarity_list/(frame_count+1), self.text_alarm_level_list)
+            frame_count +=1
+
+
+def main():
+    global global_input
+    global global_quit
+
+    args = get_args()
+
+    dxnn_video_encoder = DXVideoEncoder(args.video_encoder_dxnn)
+    
+    token_embedder = PiaONNXTensorRTModel(
+        model_path=args.token_embedder_onnx, device=DEVICE
+    )
+    text_encoder = PiaONNXTensorRTModel(
+        model_path=args.text_encoder_onnx, device=DEVICE
+    )
+    
+    gt_video_path_lists = [
+    [
+        "fire_on_car",
+    ],
+    [
+        "dam_explosion_short",
+    ],
+    [
+        "violence_in_shopping_mall_short",
+    ],
+    [
+        "gun_terrorism_in_airport",
+    ],
+    # [
+    #     "crowded_in_subway",
+    # ],
+    # [
+    #     "heavy_structure_falling",
+    # ],
+    # [
+    #     "violence_in_shopping_mall_short",
+    # ],
+    # [
+    #     "gun_terrorism_in_airport",
+    # ],
+    # [
+    #     "fire_on_car",
+    # ],
+    # [
+    #     "dam_explosion_short",
+    # ],
+    # [
+    #     "violence_in_shopping_mall_short",
+    # ],
+    # [
+    #     "gun_terrorism_in_airport",
+    # ],
+    # [
+    #     "crowded_in_subway",
+    # ],
+    # [
+    #     "heavy_structure_falling",
+    # ],
+    # [
+    #     "violence_in_shopping_mall_short",
+    # ],
+    # [
+    #     "gun_terrorism_in_airport",
+    # ],
+    ]
+    
+    gt_text_list = [
+        "The subway is crowded with people",
+        "People is crowded in the subway",
+        
+        "Heavy objects are fallen",
+        
+        "Physical confrontation occurs between two people",
+        "Violence with kicking and punching",
+        
+        "Terrorism is taking place at the airport",
+        "Terrorist is shooting at people",
+        
+        "The water is exploding out",
+        "The water is gushing out",
+        
+        "Fire is coming out of the car",
+        "The car is exploding",
+    ]
+    
+    gt_text_alarm_level = [
+        [0.27, 0.29, 0.28],      # "The subway is crowded with people",
+        [0.27, 0.29, 0.28],      # "People is crowded in the subway",
+        
+        [0.21, 0.25, 0.225],     # "Heavy objects are fallen",
+        
+        [0.23, 0.25, 0.24],      # "Physical confrontation occurs between two people",
+        [0.22, 0.25, 0.23],      # "Violence with kicking and punching",
+        
+        [0.27, 0.29, 0.28],       # "Terrorism is taking place at the airport",
+        [0.23, 0.26, 0.247],       # "Terrorist is shooting at people",
+        
+        [0.24, 0.28, 0.255],       # "The water is exploding out",
+        [0.24, 0.28, 0.255],      # "The water is gushing out",
+        
+        [0.23, 0.26, 0.24],     # "Fire is coming out of the car",
+        [0.24, 0.28, 0.26],   # "The car is exploding",
+    ]
+    
+    div = int(np.ceil(np.sqrt(len(gt_video_path_lists))))
+    print("DIV : ", div) 
+    video_threads = []
+    for i in range(len(gt_video_path_lists)):
+        pos_x, pos_y = (i % div) * (VIEWER_TOT_SIZE_W/div), (i // div) * (VIEWER_TOT_SIZE_H/div)
+        video_threads.append(
+                    SingleVideoThread(
+                                args.features_path, gt_video_path_lists[i], (int(pos_x), int(pos_y)), (int(VIEWER_TOT_SIZE_W/div), int(VIEWER_TOT_SIZE_H/div))
+                    )
+        )
+    
+    text_vector_list = get_text_vectors(gt_text_list, token_embedder, text_encoder)
+    video_thread = VideoThread(gt_text_list, video_threads)
+    dxnn_engine = DXEngineRun(gt_text_list, video_threads, text_vector_list, dxnn_video_encoder, gt_text_alarm_level)
+    video_thread.start()
+    dxnn_engine.start()
+    
+    # while not global_quit:
+    #     if global_input == "del":
+    #         if len(text_vector_list) > 0:
+    #             video_thread.text_pop(-1)
+    #         global_input = ""
+    #     elif global_input != "" and global_input != "quit":
+    #         new_token = get_text_vectors([global_input], token_embedder, text_encoder)
+    #         video_thread.text_update(global_input, [new_token])
+    #         gt_text_alarm_level.append([0.23, 0.31, 0.26])
+    #         global_input = ""
+    
+if __name__ == "__main__":
+    text_thread = threading.Thread(target=insert_text_in_term)
+    text_thread.daemon = True
+    text_thread.start()
+    
+    main()
+    
+    text_thread.join()
