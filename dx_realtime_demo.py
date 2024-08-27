@@ -167,17 +167,20 @@ class VideoThread(threading.Thread):
         self.pannel_size_h = 1080
         self.video_size_w = 920
         self.video_size_h = 690
-        self.text_intervals = 40
+        self.text_intervals = 30
+        self.font_face = cv2.FONT_HERSHEY_SIMPLEX
+        self.text_thickness = 2
+        self.number_of_alarms = 2
         self.last_update_time_text = 0  # Initialize the last update time
         self.update_interval_text = 1  # Set update interval to 1 seconds (adjust as needed)
         self.last_update_time_fps = 0  # Initialize the last update time
         self.update_interval_fps = 0.3  # Set update interval to 0.3 seconds (adjust as needed)
-        self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255  # 하얀색 판
+        self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255 # pennel color
         self.x, self.y = 20, 80
-        self.view_pannel_frame[self.y:self.y + self.video_size_w, self.x:self.x+self.video_size_w] = 0
+        self.view_pannel_frame[self.y:self.y + self.video_size_w, self.x:self.x+self.video_size_w] = 255 # video letterbox color
         self.video_roi = [self.x, self.y + 115, self.video_size_w, self.video_size_h]
         self.terminal_roi = [self.pannel_size_w - self.x - self.video_size_w, int(self.pannel_size_h/2) + 80]
-        self.text_roi = [self.pannel_size_w - self.x - self.video_size_w, self.y + 60]
+        self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 + int(self.video_size_h/2) - self.text_intervals]
         self.show_fps_roi = [int(self.pannel_size_w * 4 / 5), 0]
         
         self.original = np.zeros((224, 224, 3), dtype=np.uint8)
@@ -191,12 +194,14 @@ class VideoThread(threading.Thread):
     def run(self):
         global input_text
         global global_quit
+
         i = 0
-        cv2.putText(self.view_pannel_frame, "   [TEXT LIST]", (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
-        i+=1
-        for text_i in self.gt_text_list:
-            cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+        if self.debug_mode:
+            cv2.putText(self.view_pannel_frame, "   [TEXT LIST]", (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
             i+=1
+            for text_i in self.gt_text_list:
+                cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+                i+=1
 
         wnd_prop_id = cv2.WND_PROP_FULLSCREEN
         wnd_prop_value = cv2.WINDOW_FULLSCREEN
@@ -251,6 +256,20 @@ class VideoThread(threading.Thread):
     
     def stop(self):
         self.stop_thread = True
+        
+    def get_font_scale(self, height_in_pixels: int) -> (int, (int, int), int):
+        # calc factor
+        font_scale = 100
+        ((fw, fh), baseline) = cv2.getTextSize(
+            text="", fontFace=self.font_face, fontScale=font_scale, thickness=self.text_thickness)
+        factor = (fh - 1) / font_scale
+    
+        # get fontScale using height_in_pixels
+        height_in_pixels = self.text_intervals
+        font_scale = (height_in_pixels - self.text_thickness) / factor
+        ((fw, fh), baseline) = cv2.getTextSize(
+            text="Test Text", fontFace=self.font_face, fontScale=font_scale, thickness=self.text_thickness)
+        return font_scale, (fw, fh), baseline
 
     def update_text(self, text_list, logit_list, gt_text_alarm_level):
         # Apply throttling: Skip update if the defined interval has not passed since the last update
@@ -258,10 +277,24 @@ class VideoThread(threading.Thread):
         if current_time_text - self.last_update_time_text < self.update_interval_text:
             return
 
+        if self.debug_mode:
+            self.text_intervals = 20
+            self.text_thickness = 1
+            self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 - self.text_intervals]
+
+        # get font_scale and font width, font height and baseline using height_in_pixels
+        (font_scale, (_, _), baseline) = self.get_font_scale(self.text_intervals)
+
         sorted_index = np.argsort(logit_list)
-        # indices_index = sorted(sorted_index[-3:])
-        indices_index = sorted(sorted_index[-2:])
-        cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] - 10), (self.pannel_size_w, int(self.pannel_size_h/2)), (255, 255, 255), -1)
+        indices_index = sorted(sorted_index[-self.number_of_alarms:])
+        
+        cv2.rectangle(
+            self.view_pannel_frame,
+            (self.text_roi[0], self.text_roi[1]),
+            (self.pannel_size_w, self.text_roi[1] + int((self.text_intervals + baseline) * self.number_of_alarms) + baseline),
+            (255, 255, 255),
+            -1
+        )
         text_i = 0
         for ii in indices_index:
             value = logit_list[ii]
@@ -283,21 +316,17 @@ class VideoThread(threading.Thread):
             else:
                 text_color = (0, 0, 255)
 
-            font_scale = 1.0
             result_str = text_list[ii]
             line_type = cv2.LINE_8
-            thickness = 2
+
             if self.debug_mode:
-                font_scale = 0.7
                 result_str = str(ret_level).rjust(3) + "%  |  " + "{:.3f}".format(value) + "  |  " + result_str
                 line_type = cv2.LINE_AA
-                thickness = 1
-                self.text_intervals = 30
 
             cv2.putText(self.view_pannel_frame, 
                     result_str,
-                    (self.text_roi[0] + 5, self.text_roi[1] + 15 + (self.text_intervals * text_i)), 
-                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness, line_type)
+                    (self.text_roi[0], self.text_roi[1] + ((self.text_intervals + baseline) * (text_i+1))),
+                    self.font_face, font_scale, text_color, self.text_thickness, line_type)
             text_i+=1
 
         # Update the last update time to the current time
