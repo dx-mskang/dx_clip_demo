@@ -13,11 +13,10 @@ from tqdm import tqdm
 
 import cv2
 import threading
-import heapq
 
 from dx_engine import InferenceEngine
 
-input_text = ""
+global_input = ""
 global_quit = False
 
 def get_args():
@@ -51,11 +50,11 @@ def get_device():
         return "cpu"
 
 def insert_text_in_term():
-    global input_text
+    global global_input
     global global_quit
     while True:
-        input_text = input("Enter text to display on video (insert 'quit' to quit): ")
-        if input_text == "quit":
+        global_input = input("Enter text to display on video (insert 'quit' to quit): ")
+        if global_input == "quit":
             global_quit = True
             break
         if global_quit:
@@ -167,20 +166,20 @@ class VideoThread(threading.Thread):
         self.pannel_size_h = 1080
         self.video_size_w = 920
         self.video_size_h = 690
-        self.text_intervals = 30
+        self.text_line_height = 30
         self.font_face = cv2.FONT_HERSHEY_SIMPLEX
         self.text_thickness = 2
         self.number_of_alarms = 2
         self.last_update_time_text = 0  # Initialize the last update time
-        self.update_interval_text = 1  # Set update interval to 1 seconds (adjust as needed)
+        self.interval_update_time_text = 1  # Set update interval to 1 seconds (adjust as needed)
         self.last_update_time_fps = 0  # Initialize the last update time
-        self.update_interval_fps = 0.3  # Set update interval to 0.3 seconds (adjust as needed)
+        self.interval_update_time_fps = 0.3  # Set update interval to 0.3 seconds (adjust as needed)
         self.view_pannel_frame = np.ones((self.pannel_size_h, self.pannel_size_w, 3), dtype=np.uint8) * 255 # pennel color
         self.x, self.y = 20, 80
         self.view_pannel_frame[self.y:self.y + self.video_size_w, self.x:self.x+self.video_size_w] = 255 # video letterbox color
         self.video_roi = [self.x, self.y + 115, self.video_size_w, self.video_size_h]
         self.terminal_roi = [self.pannel_size_w - self.x - self.video_size_w, int(self.pannel_size_h/2) + 80]
-        self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 + int(self.video_size_h/2) - self.text_intervals]
+        self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 + int(self.video_size_h/2) - self.text_line_height]
         self.show_fps_roi = [int(self.pannel_size_w * 4 / 5), 0]
         
         self.original = np.zeros((224, 224, 3), dtype=np.uint8)
@@ -192,15 +191,15 @@ class VideoThread(threading.Thread):
         self.debug_mode = False
 
     def run(self):
-        global input_text
+        global global_input
         global global_quit
 
         i = 0
         if self.debug_mode:
-            cv2.putText(self.view_pannel_frame, "   [TEXT LIST]", (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(self.view_pannel_frame, "   [TEXT LIST]", (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_line_height * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
             i+=1
             for text_i in self.gt_text_list:
-                cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(self.view_pannel_frame, "   " + text_i, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_line_height * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
                 i+=1
 
         wnd_prop_id = cv2.WND_PROP_FULLSCREEN
@@ -235,13 +234,13 @@ class VideoThread(threading.Thread):
             self.view_pannel_frame[self.video_roi[1]:self.video_roi[1] + self.video_roi[3], self.video_roi[0]:self.video_roi[0]+self.video_roi[2]] = frame
             
             if self.update_new_text:
-                cv2.putText(self.view_pannel_frame, "   " + self.new_text, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_intervals * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(self.view_pannel_frame, "   " + self.new_text, (self.terminal_roi[0] + 5, self.terminal_roi[1] + 15 + (self.text_line_height * i)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
                 i+=1
                 self.update_new_text = False
             
             if self.pop_last_text:
                 i-=1
-                cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] + (self.text_intervals * i) - 10), (self.pannel_size_w, self.text_roi[1] + (self.text_intervals * i) + 25), (255, 255, 255), -1)
+                cv2.rectangle(self.view_pannel_frame, (self.text_roi[0], self.text_roi[1] + (self.text_line_height * i) - 10), (self.pannel_size_w, self.text_roi[1] + (self.text_line_height * i) + 25), (255, 255, 255), -1)
                 self.pop_last_text = False
                 self.final_text = " "
             
@@ -265,7 +264,7 @@ class VideoThread(threading.Thread):
         factor = (fh - 1) / font_scale
     
         # get fontScale using height_in_pixels
-        height_in_pixels = self.text_intervals
+        height_in_pixels = self.text_line_height
         font_scale = (height_in_pixels - self.text_thickness) / factor
         ((fw, fh), baseline) = cv2.getTextSize(
             text="Test Text", fontFace=self.font_face, fontScale=font_scale, thickness=self.text_thickness)
@@ -274,16 +273,16 @@ class VideoThread(threading.Thread):
     def update_text(self, text_list, logit_list, gt_text_alarm_level):
         # Apply throttling: Skip update if the defined interval has not passed since the last update
         current_time_text = time.time()
-        if current_time_text - self.last_update_time_text < self.update_interval_text:
+        if current_time_text - self.last_update_time_text < self.interval_update_time_text:
             return
 
         if self.debug_mode:
-            self.text_intervals = 20
+            self.text_line_height = 20
             self.text_thickness = 1
-            self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 - self.text_intervals]
+            self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 - self.text_line_height]
 
         # get font_scale and font width, font height and baseline using height_in_pixels
-        (font_scale, (_, _), baseline) = self.get_font_scale(self.text_intervals)
+        (font_scale, (_, _), baseline) = self.get_font_scale(self.text_line_height)
 
         sorted_index = np.argsort(logit_list)
         indices_index = sorted(sorted_index[-self.number_of_alarms:])
@@ -291,7 +290,7 @@ class VideoThread(threading.Thread):
         cv2.rectangle(
             self.view_pannel_frame,
             (self.text_roi[0], self.text_roi[1]),
-            (self.pannel_size_w, self.text_roi[1] + int((self.text_intervals + baseline) * self.number_of_alarms) + baseline),
+            (self.pannel_size_w, self.text_roi[1] + int((self.text_line_height + baseline) * self.number_of_alarms) + baseline),
             (255, 255, 255),
             -1
         )
@@ -323,10 +322,10 @@ class VideoThread(threading.Thread):
                 result_str = str(ret_level).rjust(3) + "%  |  " + "{:.3f}".format(value) + "  |  " + result_str
                 line_type = cv2.LINE_AA
 
-            cv2.putText(self.view_pannel_frame, 
-                    result_str,
-                    (self.text_roi[0], self.text_roi[1] + ((self.text_intervals + baseline) * (text_i+1))),
-                    self.font_face, font_scale, text_color, self.text_thickness, line_type)
+            cv2.putText(self.view_pannel_frame,
+                        result_str,
+                        (self.text_roi[0], self.text_roi[1] + ((self.text_line_height + baseline) * (text_i + 1))),
+                        self.font_face, font_scale, text_color, self.text_thickness, line_type)
             text_i+=1
 
         # Update the last update time to the current time
@@ -364,7 +363,7 @@ class VideoThread(threading.Thread):
     def update_fps(self, dxnn_time_list, sol_time_list):
         # Apply throttling: Skip update if the defined interval has not passed since the last update
         current_time_fps = time.time()
-        if current_time_fps - self.last_update_time_fps < self.update_interval_fps:
+        if current_time_fps - self.last_update_time_fps < self.interval_update_time_fps:
             return
 
         cv2.rectangle(self.view_pannel_frame, (self.show_fps_roi[0], 0), (self.pannel_size_w, 80), (255, 255, 255), -1)
@@ -391,7 +390,7 @@ class VideoThread(threading.Thread):
         self.last_update_time_fps = current_time_fps
 
 def main():
-    global input_text
+    global global_input
     global result_logits_np
     global global_quit
     
@@ -563,7 +562,7 @@ def main():
             
         # print("max retrieve_logits = {}, argmax = {}".format(result_logits_np[argmax_index]/(j+1), argmax_index))
         
-        if input_text == "del":
+        if global_input == "del":
             j = 0
             if len(text_vector_list) > 0:
                 text_vector_list.pop(-1)
@@ -571,9 +570,9 @@ def main():
                 gt_text_list.pop(-1)
                 gt_text_alarm_level.pop(-1)
                 video_thread.pop_text_vector(-1)
-            input_text = ""
-        elif input_text != "":
-            gt_text_token = ClipTokenizer().tokenize(input_text)
+            global_input = ""
+        elif global_input != "":
+            gt_text_token = ClipTokenizer().tokenize(global_input)
             gt_text_token = [SPECIAL_TOKEN["CLS_TOKEN"]] + gt_text_token
             total_length_with_class = max_words - 1
             if len(gt_text_token) > total_length_with_class:
@@ -600,10 +599,10 @@ def main():
             text_vector_list.append(text_vectors)
             j = 0
             result_logits_np = np.zeros((len(text_vector_list), 1, 1))
-            video_thread.update_text_vector(input_text)
-            gt_text_list.append(input_text)
+            video_thread.update_text_vector(global_input)
+            gt_text_list.append(global_input)
             gt_text_alarm_level.append([0.23, 0.31, 0.26])
-            input_text = ""
+            global_input = ""
         j += 1
 
         if video_thread.released or global_quit:

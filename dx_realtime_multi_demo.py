@@ -158,8 +158,23 @@ class SingleVideoThread(threading.Thread):
         self.imshow_size = imshow_size
         self.npu_preprocess_mul_val = np.float32([64.75055694580078])
         self.npu_preprocess_add_val = np.float32([-11.950003623962402])
-        self.last_update_time = 0
-        self.interval_update_time = 1
+        self.last_update_time_text = 0
+        self.interval_update_time_text = 1
+        self.number_of_alarms = 2
+        self.video_fps = 30
+        self.text_line_height = 30
+        self.font_face = cv2.FONT_HERSHEY_SIMPLEX
+        self.text_thickness = 2
+        #self.textarea_padding = 20
+        self.textarea_padding = 0
+        self.text_line_height = 40
+        self.textarea_left = self.textarea_padding
+        self.textarea_height = self.text_line_height * self.number_of_alarms
+        self.textarea_bottom = self.textarea_height + self.textarea_padding
+        self.text_padding = 30
+        self.text_left = self.textarea_left + self.text_padding
+        self.text_bottom = self.textarea_bottom - self.text_padding
+        self.text_scale = 0.8
         
         if video_path_list[0] == "/dev/video0":
             self.base_path = ""
@@ -182,6 +197,7 @@ class SingleVideoThread(threading.Thread):
         
         self.similarity_list = []
         self.this_argmax_text = []
+
     
     def transform(self, n_px):
         return Compose([
@@ -195,10 +211,12 @@ class SingleVideoThread(threading.Thread):
     def run(self):
         global global_quit
         global global_input
+
         self.get_cap()
         while not global_quit:
             self.get_cap()
-            time.sleep(0.033)
+            time.sleep(1 / self.video_fps)
+
             if global_quit:
                 break
             
@@ -219,15 +237,21 @@ class SingleVideoThread(threading.Thread):
     def get_resized_frame(self):
         resized_frame = cv2.resize(self.current_original_frame, self.imshow_size, cv2.INTER_LINEAR)
         if len(self.this_argmax_text) > 0:
-            for t in range(len(self.this_argmax_text)):
-                try:
-                    cv2.rectangle(resized_frame, (20, self.imshow_size[1] - 120 + (40 * t)), (self.imshow_size[0]-20, self.imshow_size[1] - 80 + (40 * t)), (0, 0, 0), -1)
-                    cv2.putText(resized_frame, 
-                                self.this_argmax_text[t], 
-                                (50, self.imshow_size[1] - 90 + (40 * t)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
-                except Exception as e:
-                    pass
+            try:
+                cv2.rectangle(
+                    resized_frame,
+                    (self.textarea_left, self.imshow_size[1] - self.textarea_bottom),
+                    (self.imshow_size[0] - self.textarea_padding, self.imshow_size[1] - self.textarea_padding),
+                    (0, 0, 0),
+                    -1)
+                for t in range(len(self.this_argmax_text)):
+                    cv2.putText(
+                        resized_frame,
+                        self.this_argmax_text[t],
+                        (self.text_left, self.imshow_size[1] - self.text_bottom + (self.text_line_height * t)),
+                        self.font_face, self.text_scale, (0, 0, 255), self.text_thickness, cv2.LINE_AA)
+            except Exception as e:
+                pass
         return resized_frame
     
     def status_video_source(self):
@@ -236,12 +260,12 @@ class SingleVideoThread(threading.Thread):
         return ret
     
     def update(self, text_list, logit_list, alarm_list):
-        current_update_time = time.time()
-        if current_update_time - self.last_update_time < self.interval_update_time:
+        current_update_time_text = time.time()
+        if current_update_time_text - self.last_update_time_text < self.interval_update_time_text:
             return
         argmax_text = []
         sorted_index = np.argsort(logit_list)
-        indices_index = np.array(sorted(sorted_index[-2:]))
+        indices_index = np.array(sorted(sorted_index[-self.number_of_alarms:]))
         for t in indices_index:
             value = logit_list[t]
             min_value = alarm_list[t][0]
@@ -257,10 +281,9 @@ class SingleVideoThread(threading.Thread):
                 # print(value, ", ", alarm_threshold)
                 argmax_text.append(text_list[t])
         self.this_argmax_text = argmax_text
-        self.last_update_time = current_update_time
+        self.last_update_time_text = current_update_time_text
 
 
-# 일단 9채널 3 by 3 UI 구성해보자구
 class VideoThread(threading.Thread):
     def __init__(self, gt_text_list: List[str], video_threads: List[SingleVideoThread]):
         super().__init__()
@@ -271,8 +294,8 @@ class VideoThread(threading.Thread):
         self.result_text = ""
         self.result_logit = 0.0
         self.released = False
-        self.text_intervals = 30
-        self.alarm_thresh = 48
+        self.font_face = cv2.FONT_HERSHEY_SIMPLEX
+        self.text_thickness = 2
         self.x, self.y = 20, 80
         self.view_pannel_frame = np.zeros((VIEWER_TOT_SIZE_H, VIEWER_TOT_SIZE_W, 3), dtype=np.uint8)  # 검정색 판 
         self.show_fps_roi = [int(VIEWER_TOT_SIZE_W * 4 / 5), 0]
@@ -285,9 +308,11 @@ class VideoThread(threading.Thread):
         self.thread_length = len(video_threads)
         
         self.video_mask = torch.ones(1, 1)
+
+        self.debug_mode = False
         
-        self.last_update_time = 0
-        self.interval_update_time = 1
+        self.last_update_time_fps = 0
+        self.interval_update_time_fps = 0.3
         
         self.dxnn_fps = 0
         self.sol_fps = 0
@@ -298,11 +323,14 @@ class VideoThread(threading.Thread):
         for thread in self.video_threads:
             thread.start()
             thread.similarity_list = np.zeros((len(self.gt_text_list)))
-        
-        inf_count = 0
-        
-        cv2.namedWindow('Video', cv2.WND_PROP_FULLSCREEN)
-        cv2.setWindowProperty('Video', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+        wnd_prop_id = cv2.WND_PROP_FULLSCREEN
+        wnd_prop_value = cv2.WINDOW_FULLSCREEN
+        if self.debug_mode:
+            wnd_prop_value = cv2.WINDOW_KEEPRATIO
+
+        cv2.namedWindow('Video', wnd_prop_id)
+        cv2.setWindowProperty('Video', wnd_prop_id, wnd_prop_value)
         while not global_quit:
             for vCap in self.video_threads:
                 position = vCap.position
@@ -313,10 +341,10 @@ class VideoThread(threading.Thread):
                 cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
                               (0, 0, 0), -1)
                 cv2.putText(self.view_pannel_frame, "solution  : {} FPS".format(int(self.sol_fps)),
-                            (VIEWER_TOT_SIZE_W - 450, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA
+                            (VIEWER_TOT_SIZE_W - 450, 50), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
                             )
                 cv2.putText(self.view_pannel_frame,  "dxnn     : {} FPS".format(int(self.dxnn_fps)),
-                            (VIEWER_TOT_SIZE_W - 450, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA
+                            (VIEWER_TOT_SIZE_W - 450, 100), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
                             )
             cv2.imshow('Video', self.view_pannel_frame)
             
@@ -326,12 +354,12 @@ class VideoThread(threading.Thread):
         cv2.destroyAllWindows()
     
     def update_fps(self, dxnn_fps, sol_fps):
-        current_update_time = time.time()
-        if current_update_time - self.last_update_time < self.interval_update_time:
+        current_update_time_fps = time.time()
+        if current_update_time_fps - self.last_update_time_fps < self.interval_update_time_fps:
             return
         self.dxnn_fps = dxnn_fps
         self.sol_fps = sol_fps
-        self.last_update_time = current_update_time
+        self.last_update_time_fps = current_update_time_fps
     
     # def text_pop(self, mode: int):
     #     self.text_vector_list.pop(-1)
@@ -380,7 +408,7 @@ class DXEngineRun(threading.Thread):
                 vCap = self.video_threads[index]
                 if vCap.status_video_source():
                     vCap.similarity_list = np.zeros((len(self.text_list)))
-                    vCap.last_update_time = 0
+                    vCap.last_update_time_text = 0
                     frame_count = 0
                 frame = vCap.current_original_frame.copy()
                 dxnn_s = time.perf_counter_ns()
@@ -406,6 +434,7 @@ class DXEngineRun(threading.Thread):
 def main():
     global global_input
     global global_quit
+    global global_gt_video_path_lists
 
     args = get_args()
 
@@ -417,8 +446,8 @@ def main():
     text_encoder = PiaONNXTensorRTModel(
         model_path=args.text_encoder_onnx, device=DEVICE
     )
-    
-    gt_video_path_lists = [
+
+    global_gt_video_path_lists = [
     [
         "fire_on_car",
     ],
@@ -431,42 +460,42 @@ def main():
     [
         "gun_terrorism_in_airport",
     ],
-    # [
-    #     "crowded_in_subway",
-    # ],
-    # [
-    #     "heavy_structure_falling",
-    # ],
-    # [
-    #     "violence_in_shopping_mall_short",
-    # ],
-    # [
-    #     "gun_terrorism_in_airport",
-    # ],
-    # [
-    #     "fire_on_car",
-    # ],
-    # [
-    #     "dam_explosion_short",
-    # ],
-    # [
-    #     "violence_in_shopping_mall_short",
-    # ],
-    # [
-    #     "gun_terrorism_in_airport",
-    # ],
-    # [
-    #     "crowded_in_subway",
-    # ],
-    # [
-    #     "heavy_structure_falling",
-    # ],
-    # [
-    #     "violence_in_shopping_mall_short",
-    # ],
-    # [
-    #     "gun_terrorism_in_airport",
-    # ],
+    [
+        "crowded_in_subway",
+    ],
+    [
+        "heavy_structure_falling",
+    ],
+    [
+        "violence_in_shopping_mall_short",
+    ],
+    [
+        "gun_terrorism_in_airport",
+    ],
+    [
+        "fire_on_car",
+    ],
+    [
+        "dam_explosion_short",
+    ],
+    [
+        "violence_in_shopping_mall_short",
+    ],
+    [
+        "gun_terrorism_in_airport",
+    ],
+    [
+        "crowded_in_subway",
+    ],
+    [
+        "heavy_structure_falling",
+    ],
+    [
+        "violence_in_shopping_mall_short",
+    ],
+    [
+        "gun_terrorism_in_airport",
+    ],
     ]
     
     gt_text_list = [
@@ -507,14 +536,14 @@ def main():
         [0.24, 0.28, 0.26],   # "The car is exploding",
     ]
     
-    div = int(np.ceil(np.sqrt(len(gt_video_path_lists))))
+    div = int(np.ceil(np.sqrt(len(global_gt_video_path_lists))))
     print("DIV : ", div) 
     video_threads = []
-    for i in range(len(gt_video_path_lists)):
+    for i in range(len(global_gt_video_path_lists)):
         pos_x, pos_y = (i % div) * (VIEWER_TOT_SIZE_W/div), (i // div) * (VIEWER_TOT_SIZE_H/div)
         video_threads.append(
                     SingleVideoThread(
-                                args.features_path, gt_video_path_lists[i], (int(pos_x), int(pos_y)), (int(VIEWER_TOT_SIZE_W/div), int(VIEWER_TOT_SIZE_H/div))
+                                args.features_path, global_gt_video_path_lists[i], (int(pos_x), int(pos_y)), (int(VIEWER_TOT_SIZE_W/div), int(VIEWER_TOT_SIZE_H/div))
                     )
         )
     
