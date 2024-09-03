@@ -1,50 +1,106 @@
 # Environment Setup
 
-## PIA DEMO (Draft)
-### Pre-Requisite
-Install pia package [HERE](#1-set-up-virtual-environment)
+## PIA DEMO
 
-Execute pia package
+---
+### Pre-Requisite
+Please using python 3.11 version
 ```bash
-conda activate pia-package-executor
+sudo apt-get install -y python3.11 python3.11-dev python3.11-venv
 ```
-### Real Time Multi Channel Demo (16 channel)
-#### Get assets files
+
+#### Get assets(input videos and prebuilt CLIP AI model) files
 Extract the pia_assets.tar.gz file, which was provided separately and is not included in the distributed source code.
 
 ```bash
 tar -zxvf pia_assets.tar.gz 
 ```
-
 File Tree on ./assets/
-    .    
-    ├── data    
-    ├── demo_videos    
-    ├── dxnn    
-    ├── onnx    
-    ├── pth    
-       
-Run Multi Demo    
-```bash
-python dx_realtime_multi_demo.py
 ```
-### Real Time Demo (Average of outputs)
-```bash
-python dx_realtime_demo.py
+assets
+├── demo_videos
+│   ├── crowded_in_subway.mp4
+│   ├── dam_explosion_short.mp4
+│   ├── electrical_outlet_is_emitting_smoke.mp4
+│   ├── falldown_on_the_grass.mp4
+│   ├── fighting_on_field.mp4
+│   ├── fire_in_the_kitchen.mp4
+│   ├── fire_on_car.mp4
+│   ├── group_fight_on_the_streat.mp4
+│   ├── gun_terrorism_in_airport.mp4
+│   ├── heavy_structure_falling.mp4
+│   ├── iron_is_on_fire.mp4
+│   ├── pot_is_catching_fire.mp4
+│   ├── someone_helps_old_man_who_is_fallting_down.mp4
+│   ├── the_pile_of_sockets_is_smoky_and_on_fire.mp4
+│   ├── two_childrens_are_fighting.mp4
+│   └── violence_in_shopping_mall_short.mp4
+├── dxnn
+│   └── pia_vit_240814.dxnn
+├── onnx
+│   ├── embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
+│   ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
+│   └── visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
+└── pia_python_package
+    ├── pia-1.3.1obf-py3-none-any.whl
+    ├── requirements.txt
+    └── sub_clip4clip-1.2.3obf-py3-none-any.whl
 ```
-- 텍스트 문장 추가 : 터미널창에 문장 입력 후 enter     
-- 마지막 문장 삭제 : 터미널창에 'del' 입력 후 enter   
-- 프로그램 종료    : 터미널창에 'quit' 입력 후 enter  
-- 카메라 모드 open : python dx_realtime_demo.py --features_path 0   
 
-### Video Demo (batch input)
+---
+### Setup PIA Space AI Packages
+
+#### 1. Set up Virtual Environment
+Using Conda 
 ```bash
-python dx_video_demo.py
-```
-### dxnn file porting
-please using python 3.11 version,    
-```bash
+conda create -n pia-package-executor python=3.11
 conda activate pia-package-executor
+```
+
+Using venv (python3-venv)
+If you are using venv instead of Conda, activate the virtual environment:
+```bash
+python3.11 -m venv pia-package-executor
+source ./pia-package-executor/bin/activate
+```
+
+#### 2. Install Python dependency packages
+```bash
+pip install -r ./assets/pia_python_package/requirements.txt
+```
+#### 3. Install PIA Space AI Packages
+
+```bash
+pip install ./assets/pia_python_package/pia-1.3.1obf-py3-none-any.whl
+pip install ./assets/pia_python_package/sub_clip4clip-1.2.3obf-py3-none-any.whl
+```
+
+#### 4. Install `onnxruntime`
+The way to install the `onnxruntime`
+
+```
+pip install onnxruntime
+```
+---
+
+### Setup DX-RunTime python package
+Please using python 3.11 version
+#### 1. activate python virutal environment (Conda or venv)
+Using Conda 
+```bash
+conda create -n pia-package-executor python=3.11
+conda activate pia-package-executor
+```
+
+Using venv (python3-venv)
+If you are using venv instead of Conda, activate the virtual environment:
+```bash
+python3.11 -m venv pia-package-executor
+source ./pia-package-executor/bin/activate
+```
+
+#### 2. Install dx_engine (Build and Install DX-Runtime Python pacakge)
+```bash
 cd dx_rt
 ./build.sh
 cd python_package
@@ -52,68 +108,47 @@ pip uninstall dx_engine
 pip install .
 ```
 Make sure there is a file *_pydxrt.cpython-311-x86_64-linux-gnu.so* under folder *dx_rt/python_package/src/dx_engine/capi*    
-### Example
+#### Example for using `dx_engine`
 ```python
 from dx_engine import InferenceEngine
 ie = InferenceEngine(your_model_path)
-.
-.
-.
+...
 output = ie.run(input)
 ```
-## 0. Prepare Linux
-| Ubuntu 18.04 | Ubuntu 20.04  | Ubuntu 22.04  | Ubuntu 24.04 |
-|--------------|---------------|---------------|--------------|
-| Not Tested   | Not Tested    | Tested        | Not Tested   |
+---
 
-## 1. Set up Virtual Environment
+### Execute Demo
+
+#### 1. Activate PIA Space AI Packages (python virtual environments)
+Using Conda 
 ```bash
-conda create -n pia-package-executor python=3.11
 conda activate pia-package-executor
 ```
-## 2. Install Python Packages
-```bash
-pip install -r requirements.txt
-```
-## 3. Install PIA Space Packages
-3.1. Download the following PIA AI packages.
-- [pia-1.3.1obf-py-none-any.whl](https://bitbucket.org/pia-space/pia-ai-package/downloads/pia-1.3.1obf-py3-none-any.whl)
-- [sub_clip4clip-1.2.3obf-py-none-any.whl](https://bitbucket.org/pia-space/sub-clip4clip/downloads/sub_clip4clip-1.2.3obf-py3-none-any.whl)
 
-3.2. Place the downloaded wheel files into the project directory.
-```
-PROJECT_ROOT/
-    +- assets/
-    +- logs/
-    +- README.md
-    +- ...
-    +- pia-1.3.1obf-py3-none-any.whl  # <- Place it into the project directory
-    +- sub_clip4clip-1.2.3obf-py-none-any.whl  # <- Place it into the project directory
+Using venv (python3-venv)[README.md](../pia_demo/pia-package-extractor-1.0.0/README.md)
+If you are using venv instead of Conda, activate the virtual environment:
+```bash
+source pia-package-executor/bin/activate
 ```
 
-3.3. Install the PIA Space AI packages.
+#### 2. Run Real Time Multi Channel Demo (16 channel - Average of outputs)
 ```bash
-pip install pia-1.3.1obf-py3-none-any.whl
-pip install sub_clip4clip-1.2.3obf-py3-none-any.whl
+python dx_realtime_multi_demo.py
+```
+(P.S) To exit the demo application, simply press the `q` key. 
+
+#### 3. Real Time Demo (Average of outputs)
+```bash
+python dx_realtime_demo.py
+```
+- Add a text sentence: Type the sentence in the terminal and press Enter
+- Delete the last sentence: Type 'del' in the terminal and press Enter
+- Exit the program: Type 'quit' in the terminal and press Enter
+- Open camera mode: Run python dx_realtime_demo.py` --features_path 0`
+
+#### 4. Video Demo (batch input)
+```bash
+python dx_video_demo.py
 ```
 
-## 4. Install `onnxruntime`
-4.2. Install the `onnxruntime` 
-4.2.1.
-For CPU:
-```
-pip install onnxruntime
-```
-# Experimental Assets Setup
-Prepare the models and dataset following [this](assets/README.md).
 
-# How to Run Evaluation
-With small test set (10 pairs of videos and captions):
-```bash
-bash eval_sampled_test_set.sh
-```
-With full test set (1,000 pairs of videos and captions):
-```bash
-bash eval_full_test_set.sh
-```
-The similarity matrix and metrics results are saved to `outputs/sim_matrix.xlsx` and `outputs/metrics.xlsx`, respectively.
