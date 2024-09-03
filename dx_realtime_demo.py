@@ -370,7 +370,7 @@ class VideoThread(threading.Thread):
         avg_dxnn_time = 1000/(np.average(np.stack(dxnn_time_list)) / 1000000)
         avg_solution_time = 1000/(np.average(np.stack(sol_time_list)) / 1000000)
         cv2.putText(self.view_pannel_frame, 
-                    "DXNN FPS : {:.2f}".format(avg_dxnn_time), 
+                    "NPU FPS : {:.2f}".format(avg_dxnn_time),
                     (self.show_fps_roi[0], self.show_fps_roi[1] + 55), 
                     cv2.FONT_HERSHEY_SIMPLEX, 
                     0.7, 
@@ -378,7 +378,7 @@ class VideoThread(threading.Thread):
                     1, 
                     cv2.LINE_AA)
         cv2.putText(self.view_pannel_frame, 
-                    "SOLUTION FPS : {:.2f}".format(avg_solution_time), 
+                    "APP FPS : {:.2f}".format(avg_solution_time),
                     (self.show_fps_roi[0], self.show_fps_roi[1] + 75), 
                     cv2.FONT_HERSHEY_SIMPLEX, 
                     0.7, 
