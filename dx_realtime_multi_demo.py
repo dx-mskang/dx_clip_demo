@@ -340,10 +340,10 @@ class VideoThread(threading.Thread):
             if self.sol_fps > 0 and self.dxnn_fps > 0:
                 cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
                               (0, 0, 0), -1)
-                cv2.putText(self.view_pannel_frame, "solution  : {} FPS".format(int(self.sol_fps)),
+                cv2.putText(self.view_pannel_frame, "APP  : {} FPS".format(int(self.sol_fps)),
                             (VIEWER_TOT_SIZE_W - 450, 50), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
                             )
-                cv2.putText(self.view_pannel_frame,  "dxnn     : {} FPS".format(int(self.dxnn_fps)),
+                cv2.putText(self.view_pannel_frame,  "NPU  : {} FPS".format(int(self.dxnn_fps)),
                             (VIEWER_TOT_SIZE_W - 450, 100), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
                             )
             cv2.imshow('Video', self.view_pannel_frame)
