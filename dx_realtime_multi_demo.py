@@ -197,6 +197,9 @@ class SingleVideoThread(threading.Thread):
         
         self.similarity_list = []
         self.this_argmax_text = []
+        
+        self.dxnn_fps = 0
+        self.sol_fps = 0
 
     
     def transform(self, n_px):
@@ -252,6 +255,15 @@ class SingleVideoThread(threading.Thread):
                         self.font_face, self.text_scale, (0, 0, 255), self.text_thickness, cv2.LINE_AA)
             except Exception as e:
                 pass
+
+        if self.sol_fps > 0 and self.dxnn_fps > 0:
+            cv2.rectangle(resized_frame, (self.imshow_size[0] - 300, 0), (self.imshow_size[0], 60), 
+                            (0, 0, 0), -1)
+            cv2.putText(resized_frame, "Render perform.: {} FPS".format(int(self.sol_fps)),
+                        (self.imshow_size[0] - 280, 25), self.font_face, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.putText(resized_frame,  "NPU perform.   : {} FPS".format(int(self.dxnn_fps)),
+                        (self.imshow_size[0] - 280, 45), self.font_face, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
         return resized_frame
     
     def status_video_source(self):
@@ -337,15 +349,15 @@ class VideoThread(threading.Thread):
                 vCap_imshow_size = vCap.imshow_size
                 self.view_pannel_frame[position[1]:position[1]+vCap_imshow_size[1], position[0]:position[0]+vCap_imshow_size[0]] = vCap.get_resized_frame()
             
-            if self.sol_fps > 0 and self.dxnn_fps > 0:
-                cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
-                              (0, 0, 0), -1)
-                cv2.putText(self.view_pannel_frame, "APP  : {} FPS".format(int(self.sol_fps)),
-                            (VIEWER_TOT_SIZE_W - 450, 50), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
-                            )
-                cv2.putText(self.view_pannel_frame,  "NPU  : {} FPS".format(int(self.dxnn_fps)),
-                            (VIEWER_TOT_SIZE_W - 450, 100), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
-                            )
+            # if self.sol_fps > 0 and self.dxnn_fps > 0:
+            #     cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
+            #                   (0, 0, 0), -1)
+            #     cv2.putText(self.view_pannel_frame, "APP  : {} FPS".format(int(self.sol_fps)),
+            #                 (VIEWER_TOT_SIZE_W - 450, 50), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
+            #                 )
+            #     cv2.putText(self.view_pannel_frame,  "NPU  : {} FPS".format(int(self.dxnn_fps)),
+            #                 (VIEWER_TOT_SIZE_W - 450, 100), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
+            #                 )
             cv2.imshow('Video', self.view_pannel_frame)
             
             if cv2.waitKey(1) == ord('q'):
@@ -424,6 +436,8 @@ class DXEngineRun(threading.Thread):
                 e = time.perf_counter_ns()
                 dxnn_fps = 1000/((dxnn_e - dxnn_s) / 1000000)
                 sol_fps = 1000/((e - s) / 1000000)
+                vCap.dxnn_fps = dxnn_fps
+                vCap.sol_fps = sol_fps
                 self.video_viewer.update_fps(dxnn_fps, sol_fps)
             for index in range(len(self.video_threads)):
                 vCap = self.video_threads[index]
@@ -448,52 +462,52 @@ def main():
 
     gt_video_path_lists = [
         [
-            "demo_videos//fire_on_car",
+            "demo_videos/fire_on_car",
         ],
         [
-            "demo_videos//dam_explosion_short",
+            "demo_videos/dam_explosion_short",
         ],
         [
-            "demo_videos//violence_in_shopping_mall_short",
+            "demo_videos/violence_in_shopping_mall_short",
         ],
         [
-            "demo_videos//gun_terrorism_in_airport",
+            "demo_videos/gun_terrorism_in_airport",
         ],
         [
-            "demo_videos//crowded_in_subway",
+            "demo_videos/crowded_in_subway",
         ],
         [
-            "demo_videos//heavy_structure_falling",
+            "demo_videos/heavy_structure_falling",
         ],
         [
-            "test_videos/electrical_outlet_is_emitting_smoke",
+            "demo_videos/electrical_outlet_is_emitting_smoke",
         ],
         [
-            "test_videos/pot_is_catching_fire",
+            "demo_videos/pot_is_catching_fire",
         ],
         [
-            "test_videos/falldown_on_the_grass",
+            "demo_videos/falldown_on_the_grass",
         ],
         [
-            "test_videos/fighting_on_field",
+            "demo_videos/fighting_on_field",
         ],
         [
-            "test_videos/fire_in_the_kitchen",
+            "demo_videos/fire_in_the_kitchen",
         ],
         [
-            "test_videos/group_fight_on_the_streat",
+            "demo_videos/group_fight_on_the_streat",
         ],
         [
-            "test_videos/iron_is_on_fire",
+            "demo_videos/iron_is_on_fire",
         ],
         [
-            "test_videos/someone_helps_old_man_who_is_fallting_down",
+            "demo_videos/someone_helps_old_man_who_is_fallting_down",
         ],
         [
-            "test_videos/the_pile_of_sockets_is_smoky_and_on_fire"
+            "demo_videos/the_pile_of_sockets_is_smoky_and_on_fire"
         ],
         [
-            "test_videos/two_childrens_are_fighting",
+            "demo_videos/two_childrens_are_fighting",
         ],
     ]
     gt_text_alarm_level = [
@@ -608,12 +622,14 @@ def main():
     #         video_thread.text_update(global_input, [new_token])
     #         gt_text_alarm_level.append([0.23, 0.31, 0.26])
     #         global_input = ""
+    #     else:
+    #         continue
     
 if __name__ == "__main__":
-    text_thread = threading.Thread(target=insert_text_in_term)
-    text_thread.daemon = True
-    text_thread.start()
+    # text_thread = threading.Thread(target=insert_text_in_term)
+    # text_thread.daemon = True
+    # text_thread.start()
     
     main()
     
-    text_thread.join()
+    # text_thread.join()
