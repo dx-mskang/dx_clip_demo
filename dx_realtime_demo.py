@@ -188,7 +188,7 @@ class VideoThread(threading.Thread):
         self.pop_last_text = False
         self.new_text = ""
 
-        self.debug_mode = True
+        self.debug_mode = False
 
     def run(self):
         global global_input
