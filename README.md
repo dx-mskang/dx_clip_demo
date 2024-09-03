@@ -9,13 +9,13 @@ Execute pia package
 conda activate pia-package-executor
 ```
 ### Real Time Multi Channel Demo (16 channel)
-Get assets files 
+#### Get assets files
+Extract the pia_assets.tar.gz file, which was provided separately and is not included in the distributed source code.
+
 ```bash
-cd asstes
-mount -o nolock 192.168.30.201:/do/regression/ /mnt/regression_storage
-cp /mnt/regression_storage/atd/pia_assets.tar.gz ./
 tar -zxvf pia_assets.tar.gz 
 ```
+
 File Tree on ./assets/
     .    
     ├── data    

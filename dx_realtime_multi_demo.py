@@ -259,9 +259,9 @@ class SingleVideoThread(threading.Thread):
         if self.sol_fps > 0 and self.dxnn_fps > 0:
             cv2.rectangle(resized_frame, (self.imshow_size[0] - 300, 0), (self.imshow_size[0], 60), 
                             (0, 0, 0), -1)
-            cv2.putText(resized_frame, "Render perform.: {} FPS".format(int(self.sol_fps)),
+            cv2.putText(resized_frame, "Render perform. : {} FPS".format(int(self.sol_fps)),
                         (self.imshow_size[0] - 280, 25), self.font_face, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-            cv2.putText(resized_frame,  "NPU perform.   : {} FPS".format(int(self.dxnn_fps)),
+            cv2.putText(resized_frame,  "NPU perform.    : {} FPS".format(int(self.dxnn_fps)),
                         (self.imshow_size[0] - 280, 45), self.font_face, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
         return resized_frame
