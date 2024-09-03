@@ -1,6 +1,33 @@
 # Environment Setup
 
 ## PIA DEMO (Draft)
+### Pre-Requisite
+Install pia package [HERE](#1-set-up-virtual-environment)
+
+Execute pia package
+```bash
+conda activate pia-package-executor
+```
+### Real Time Multi Channel Demo (16 channel)
+Get assets files 
+```bash
+cd asstes
+mount -o nolock 192.168.30.201:/do/regression/ /mnt/regression_storage
+cp /mnt/regression_storage/atd/pia_assets.tar.gz ./
+tar -zxvf pia_assets.tar.gz 
+```
+File Tree on ./assets/
+    .    
+    ├── data    
+    ├── demo_videos    
+    ├── dxnn    
+    ├── onnx    
+    ├── pth    
+       
+Run Multi Demo    
+```bash
+python dx_realtime_multi_demo.py
+```
 ### Real Time Demo (Average of outputs)
 ```bash
 python dx_realtime_demo.py
@@ -71,39 +98,12 @@ pip install sub_clip4clip-1.2.3obf-py3-none-any.whl
 ```
 
 ## 4. Install `onnxruntime`
-The way to install the `onnxruntim`(or `onnxruntim-gpu` depends on the CUDA version(https://onnxruntime.ai/docs/install/))
-
 4.2. Install the `onnxruntime` 
 4.2.1.
 For CPU:
 ```
 pip install onnxruntime
 ```
-
-4.2.2. Install the `onnxruntime-gpu` depending on your CUDA version.
-- P.S: If you are using a GPU, you can install `onnxruntime-gpu` as shown below.
-
-For GPU:
-Check your CUDA version.
-```bash
-$ nvcc -V
-nvcc: NVIDIA (R) Cuda compiler driver
-Copyright (c) 2005-2023 NVIDIA Corporation
-Built on Tue_Aug_15_22:02:13_PDT_2023
-Cuda compilation tools, release 12.2, V12.2.140
-Build cuda_12.2.r12.2/compiler.33191640_0
-```
-
-For `CUDA-11.x`:
-```
-pip install onnxruntime-gpu
-```
-
-For `CUDA-12.x`:
-```
-pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
-```
-
 # Experimental Assets Setup
 Prepare the models and dataset following [this](assets/README.md).
 
