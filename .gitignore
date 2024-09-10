@@ -1,4 +1,5 @@
 .idea
 assets/
-pia-package-executor/
+pia-package-executor-pyqt/
+pia-package-executor-opencv/
 profiler.json
