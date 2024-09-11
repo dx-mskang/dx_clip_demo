@@ -592,7 +592,7 @@ class ClipModelSampleApp(QMainWindow):
 
         with self.lock:
             self.gt_text_list.append(self.text_input.text())
-            self.text_vector_list = TextVectorUtil.get_text_vector_list(self.gt_text_list)
+            self.text_vector_list.append(TextVectorUtil.get_text_vector_list([self.gt_text_list[-1]]))
             self.gt_text_alarm_level.append([0.23, 0.31, 0.26])
             self.init_similarity_list()
 
