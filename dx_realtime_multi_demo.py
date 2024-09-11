@@ -178,14 +178,14 @@ class SingleVideoThread(threading.Thread):
         
         if video_path_list[0] == "/dev/video0":
             self.base_path = ""
-            self.video_paths = ["/dev/video0"]
+            self.video_path_list = ["/dev/video0"]
             self.current_index = 0
-            self.video_path_current = os.path.join(self.video_paths[self.current_index])
+            self.video_path_current = os.path.join(self.video_path_list[self.current_index])
         else:
             self.base_path = base_path
-            self.video_paths = video_path_list
+            self.video_path_list = video_path_list
             self.current_index = 0
-            self.video_path_current = os.path.join(self.base_path, self.video_paths[self.current_index] + ".mp4")
+            self.video_path_current = os.path.join(self.base_path, self.video_path_list[self.current_index] + ".mp4")
 
         self.cap = cv2.VideoCapture(self.video_path_current)
         self.current_original_frame = np.zeros((self.imshow_size[1], self.imshow_size[0], 3), dtype=np.uint8)  # 검정색 판 
@@ -229,8 +229,8 @@ class SingleVideoThread(threading.Thread):
     def get_cap(self):
         ret, frame = self.cap.read()
         if not ret:
-            self.current_index = 0 if self.current_index + 1 == len(self.video_paths) else self.current_index + 1
-            self.video_path_current = os.path.join(self.base_path, self.video_paths[self.current_index] + ".mp4")
+            self.current_index = 0 if self.current_index + 1 == len(self.video_path_list) else self.current_index + 1
+            self.video_path_current = os.path.join(self.base_path, self.video_path_list[self.current_index] + ".mp4")
             self.cap.release()
             self.cap = cv2.VideoCapture(self.video_path_current)
             ret, frame = self.cap.read()
@@ -296,7 +296,7 @@ class SingleVideoThread(threading.Thread):
         self.last_update_time_text = current_update_time_text
 
 
-class VideoThread(threading.Thread):
+class VideoViewer(threading.Thread):
     def __init__(self, gt_text_list: List[str], video_threads: List[SingleVideoThread]):
         super().__init__()
         self.gt_text_list = gt_text_list
@@ -387,8 +387,8 @@ class VideoThread(threading.Thread):
     #     self.result_logits_each_videos[index,:] = np.zeros_like(self.result_logits_each_videos[index,:],dtype=np.float32)
             
 
-class DXEngineRun(threading.Thread):
-    def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List, video_viewer: VideoThread):
+class DXEngineThread(threading.Thread):
+    def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List, video_viewer: VideoViewer):
         super().__init__()
         self.text_list = text_list
         self.text_alarm_level_list = text_alarm_level_list
@@ -607,9 +607,9 @@ def main():
         )
     
     text_vector_list = get_text_vectors(gt_text_list, token_embedder, text_encoder)
-    video_thread = VideoThread(gt_text_list, video_threads)
-    dxnn_engine = DXEngineRun(gt_text_list, video_threads, text_vector_list, dxnn_video_encoder, gt_text_alarm_level, video_thread)
-    video_thread.start()
+    video_viewer = VideoViewer(gt_text_list, video_threads)
+    dxnn_engine = DXEngineThread(gt_text_list, video_threads, text_vector_list, dxnn_video_encoder, gt_text_alarm_level, video_viewer)
+    video_viewer.start()
     dxnn_engine.start()
     
     # while not global_quit:
