@@ -10,3 +10,9 @@ pandas
 pytest
 numpy>=1.23.5,<2.0.0
 openpyxl
+
+opencv-python-headless
+pyqt5
+pyqt-toast-notification
+qdarkstyle
+overrides

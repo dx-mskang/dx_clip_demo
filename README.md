@@ -78,7 +78,7 @@ pip install ./assets/pia_python_package/sub_clip4clip-1.2.3obf-py3-none-any.whl
 #### 4. Install `onnxruntime`
 The way to install the `onnxruntime`
 
-```
+```bash
 pip install onnxruntime
 ```
 ---
@@ -111,6 +111,7 @@ Make sure there is a file *_pydxrt.cpython-311-x86_64-linux-gnu.so* under folder
 #### Example for using `dx_engine`
 ```python
 from dx_engine import InferenceEngine
+your_model_path = "/your/model/path"
 ie = InferenceEngine(your_model_path)
 ...
 output = ie.run(input)
@@ -131,9 +132,20 @@ If you are using venv instead of Conda, activate the virtual environment:
 source pia-package-executor/bin/activate
 ```
 
+
+#### 2. Install Demo App dependency packages
+
+```bash
+pip install -r requirements.txt
+```
+or
+```bash
+pip install opencv-python-headless, pyqt5, pyqt-toast-notification, qdarkstyle, overrides
+```
+
 #### 2. Run Real Time Multi Channel Demo (16 channel - Average of outputs)
 ```bash
-python dx_realtime_multi_demo.py
+python dx_realtime_multi_demo_qt.py
 ```
 (P.S) To exit the demo application, simply press the `q` key. 
 
