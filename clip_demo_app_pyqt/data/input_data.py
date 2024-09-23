@@ -1,4 +1,5 @@
 class InputData:
+    default_sentence_threshold = [0.23, 0.31, 0.26]
     video_path_lists: list = [
         # [
         #     "/dev/video0"
@@ -52,7 +53,7 @@ class InputData:
             "demo_videos/two_childrens_are_fighting",
         ],
     ]
-    sentence_alarm_threshold: list = [
+    sentence_alarm_threshold_list: list = [
         [0.27, 0.29, 0.28],  # "The subway is crowded with people",
         [0.27, 0.29, 0.28],  # "People is crowded in the subway",
 

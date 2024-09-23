@@ -1,4 +1,6 @@
+import threading
 import time
+import traceback
 
 import numpy as np
 import torch
@@ -26,6 +28,8 @@ class ClipVideoConsumer(VideoConsumer):
                  video_source_changed_signal: pyqtSignal, sentence_list_update_signal: pyqtSignal, ctx: ClipViewModel):
         super().__init__(channel_idx, origin_video_frame_updated_signal, video_source_changed_signal)
         self.ctx = ctx
+        self.__similarity_list_lock = threading.Lock()
+
         self.__number_of_alarms = number_of_alarms
         self.__similarity_list = None
         self.__init_similarity_list()
@@ -43,8 +47,9 @@ class ClipVideoConsumer(VideoConsumer):
     @overrides()
     def process(self, frame):
         # print("get QImage on VideoConsumer" + str(frame))
-        # TODO : 필요 여부 확인 필요
-        # time.sleep(0.1)
+
+        # for prevent UI freeze
+        time.sleep(0.3)
 
     # video_thread_list = self.ctx.get_video_thread_list()
     # for index in range(len(video_thread_list)):
@@ -67,19 +72,20 @@ class ClipVideoConsumer(VideoConsumer):
         dxnn_e = time.perf_counter_ns()
         # print(index, " : ", video_pred.shape)
 
-        self.ctx.get_sentence_lock().lock()
+        sentence_vector_list = self.ctx.get_sentence_vector_list()
+
+        for text_index in range(len(sentence_vector_list)):
+            ret = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
+            similarity_list.append(ret)
         try:
-            for text_index in range(len(self.ctx.get_sentence_vector_list())):
-                ret = self.__loose_similarity(self.ctx.get_sentence_vector_list()[text_index], video_pred, self.video_mask)
-                similarity_list.append(ret)
-            try:
-                if len(similarity_list) > 0:
-                    similarity_list = np.stack(similarity_list).reshape(len(self.ctx.get_sentence_vector_list()))
-            except Exception as ex:
-                print(ex)
-            self.__similarity_list += similarity_list
-        finally:
-            self.ctx.get_sentence_lock().unlock()
+            if len(similarity_list) > 0:
+                similarity_list = np.stack(similarity_list).reshape(len(sentence_vector_list))
+                with self.__similarity_list_lock:
+                    self.__similarity_list += similarity_list
+        except Exception as ex:
+            traceback.print_exc()
+            print(ex)
+            return
 
         e = time.perf_counter_ns()
         dxnn_fps = 1000 / ((dxnn_e - dxnn_s) / 1000000)
@@ -91,14 +97,10 @@ class ClipVideoConsumer(VideoConsumer):
 
     # for index in range(len(video_thread_list)):
 
-        # with self.ctx.get_sentence_lock():
-        self.ctx.get_sentence_lock().lock()
-        try:
-            # vCap = video_thread_list[index]
+        # vCap = video_thread_list[index]
+        with self.__similarity_list_lock:
             self.__update_argmax_text(self.ctx.get_sentence_list(), self.__similarity_list / (self.__frame_count + 1),
                                       self.ctx.get_sentence_alarm_threshold_list())
-        finally:
-            self.ctx.get_sentence_lock().unlock()
 
         if self._channel_idx == 0:
             self._update_overall_fps()
@@ -135,7 +137,7 @@ class ClipVideoConsumer(VideoConsumer):
 
         argmax_info_list = []
         sorted_index = np.argsort(logit_list)
-        indices_index = np.array(sorted(sorted_index[-self.__number_of_alarms:]))
+        indices_index = np.array(sorted(sorted_index[(-1 * self.__number_of_alarms):]))
         for t in indices_index:
             value = logit_list[t]
             min_value = alarm_list[t][0]
@@ -190,10 +192,13 @@ class ClipVideoConsumer(VideoConsumer):
             if sequence_output.ndim > 1:
                 sequence_output = sequence_output.squeeze(1)
         except Exception as ex:
+            traceback.print_exc()
             print(ex)
+            return
         sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True)
         retrieve_logits = torch.matmul(sequence_output, visual_output.t())
         return retrieve_logits
 
     def __init_similarity_list(self):
-        self.__similarity_list = np.zeros((len(self.ctx.get_sentence_list())))
+        with self.__similarity_list_lock:
+            self.__similarity_list = np.zeros((len(self.ctx.get_sentence_list())))

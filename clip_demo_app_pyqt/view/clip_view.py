@@ -1,7 +1,9 @@
+import threading
+import time
 from typing import List
 
 import qdarkstyle
-from PyQt5.QtCore import Qt, QObject, QMutex
+from PyQt5.QtCore import Qt, QObject
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QTextEdit, QLineEdit, \
     QHBoxLayout, QGridLayout
@@ -20,7 +22,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __init__(self, view_model: ClipViewModel, ui_config: UIConfig, base_path, adjusted_video_path_lists):
         QMainWindow.__init__(self)
         QObject.__init__(self)
-        self.mutex = QMutex()
+        # self.mutex = QMutex()
+        self.__fps_lock = threading.Lock()
         self.__view_model = view_model
 
         self.base_path = base_path
@@ -303,24 +306,23 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.__view_model.push_sentence(self.sentence_input.text())
 
     def pop_sentence(self):
-        sentence_list = self.__view_model.get_sentence_list()
-        if len(sentence_list) == 0:
+        if len(self.sentence_list_output.toPlainText()) == 0:
             self.show_toast("No sentences to delete.")
             return
 
         self.__view_model.pop_sentence()
 
     def clear_text_list(self):
-        sentence_list = self.__view_model.get_sentence_list()
-        if len(sentence_list) == 0:
-            self.show_toast("No sentences to clear.")
+        if len(self.sentence_list_output.toPlainText()) == 0:
+            self.show_toast("No sentences to delete.")
             return
 
         self.__view_model.clear_sentence()
 
     def update_overall_fps(self):
-        self.mutex.lock()
-        try:
+        with self.__fps_lock:
+        # self.mutex.lock()
+        # try:
             if len(self.each_fps_info_list) > 0:
                 sum_overall_dxnn_fps = 0
                 sum_overall_sol_fps = 0
@@ -333,19 +335,20 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
                 self.overall_fps_label.setText(
                     f" NPU FPS: {overall_dxnn_fps:.2f}, Render FPS: {overall_sol_fps:.2f} ")
-        finally:
-            self.mutex.unlock()
+        # finally:
+        #     self.mutex.unlock()
 
     def update_each_fps(self, thread_idx, dxnn_fps, sol_fps):
-        self.mutex.lock()
-        try:
+        with self.__fps_lock:
+        # self.mutex.lock()
+        # try:
             if self.ui_helper.ui_config.show_each_fps_label:
                 self.each_fps_label_list[thread_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, Render FPS: {sol_fps:.2f} ")
 
             self.each_fps_info_list[thread_idx]["dxnn_fps"] = dxnn_fps
             self.each_fps_info_list[thread_idx]["sol_fps"] = sol_fps
-        finally:
-            self.mutex.unlock()
+        # finally:
+        #     self.mutex.unlock()
 
     @overrides
     def closeEvent(self, event):

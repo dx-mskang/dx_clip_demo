@@ -20,7 +20,7 @@ class SettingsView(QMainWindow):
 
         # input data setting
         self.video_path_lists = input_data.video_path_lists
-        self.sentence_alarm_threshold = input_data.sentence_alarm_threshold
+        self.sentence_alarm_threshold_list = input_data.sentence_alarm_threshold_list
         self.sentence_list = input_data.sentence_list
 
         self.success_cb = success_cb

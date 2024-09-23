@@ -20,7 +20,7 @@ def main():
         from clip_demo_app_pyqt.view.clip_view import ClipView
         from clip_demo_app_pyqt.viewmodel.clip_view_model import ClipViewModel
         settings_ctx.model = ClipModel(settings_ctx.base_path, settings_ctx.adjusted_video_path_lists,
-                                       settings_ctx.sentence_list, settings_ctx.sentence_alarm_threshold)
+                                       settings_ctx.sentence_list, settings_ctx.sentence_alarm_threshold_list)
         settings_ctx.view_model = ClipViewModel(settings_ctx.model)
         settings_ctx.main_app = ClipView(settings_ctx.view_model, settings_ctx.ui_config,
                                          settings_ctx.base_path, settings_ctx.adjusted_video_path_lists)

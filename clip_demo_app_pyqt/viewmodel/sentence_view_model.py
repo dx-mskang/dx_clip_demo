@@ -27,14 +27,11 @@ class SentenceViewModel(ViewModel):
         self.__sentence_model.clear_sentence()
         self._sentence_list_updated_signal.emit()
 
-    def get_sentence_lock(self):
-        return self.__sentence_model.get_sentence_lock()
-
     def get_sentence_list(self) -> list:
         return self.__sentence_model.get_sentence_list()
 
     def get_sentence_vector_list(self) -> list:
-        return self.__sentence_model.sentence_vector_list
+        return self.__sentence_model.get_sentence_vector_list()
 
     def get_sentence_alarm_threshold_list(self) -> list:
         return self.__sentence_model.get_sentence_alarm_threshold_list()
