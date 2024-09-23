@@ -1,11 +1,9 @@
 .idea
 assets/
-pia-package-executor-pyqt/
-pia-package-executor-opencv/
+pia-package-executor*/
 profiler.json
 .venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-pia-package-executor/
