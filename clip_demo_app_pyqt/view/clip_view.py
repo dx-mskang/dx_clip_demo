@@ -100,7 +100,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 channel_idx,
                 self.base_path,
                 self.adjusted_video_path_lists[channel_idx],
-                self.ui_helper.video_size
+                self.ui_helper.video_size,
+                self.__view_model.get_sentence_list_updated_signal()
             )
 
             [scaled_video_frame_updated_signal, origin_video_frame_updated_signal,

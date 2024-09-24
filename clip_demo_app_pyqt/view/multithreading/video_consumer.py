@@ -5,6 +5,9 @@ from queue import Queue
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 
+from clip_demo_app_pyqt.common.config.ui_config import UIConfig
+
+
 class VideoConsumer(QThread):
     __update_each_fps_signal = pyqtSignal(int, float, float)
     __update_overall_fps_signal = pyqtSignal()
@@ -14,7 +17,7 @@ class VideoConsumer(QThread):
         super().__init__()
         self.__running = True
         self.__pause_thread = False
-        self.__max_queue_size = 1
+        self.__max_queue_size = UIConfig.video_consumer_queue_size
         self.__queue: Queue[np.ndarray] = Queue(maxsize=self.__max_queue_size)
 
         self._channel_idx = channel_idx

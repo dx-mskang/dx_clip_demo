@@ -13,12 +13,15 @@ class VideoProducer(QThread):
     __origin_video_frame_updated_signal = pyqtSignal(int, np.ndarray)
     __video_source_changed_signal = pyqtSignal(int)
 
-    def __init__(self, channel_idx: int, base_path: str, video_path_list: List[str], video_size: Tuple):
+    def __init__(self, channel_idx: int, base_path: str, video_path_list: List[str], video_size: Tuple,
+                 sentence_list_updated_signal: pyqtSignal):
         super().__init__()
         self.__running = True
         self.__pause_thread = False
         self.__blocking_mode = True
         # self.__blocking_mode = False
+
+        sentence_list_updated_signal.connect(self.__next_video)
 
         self.__channel_idx = channel_idx
 
@@ -69,15 +72,19 @@ class VideoProducer(QThread):
     def __update_current_video_frame(self):
         ret, frame = self.__video_capture.read()
         if not ret:
-            self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
-            self.__video_path_current = os.path.join(self.__base_path, self.__video_path_list[self.__current_index] + ".mp4")
-            self.__video_capture.release()
-            self.__video_capture = cv2.VideoCapture(self.__video_path_current)
-            ret, frame = self.__video_capture.read()
-            self.__video_source_changed_signal.emit(self.__channel_idx)
+            self.__next_video()
+        else:
+            self.__current_video_frame = frame
 
+    def __next_video(self):
+        self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
+        self.__video_path_current = os.path.join(self.__base_path,
+                                                 self.__video_path_list[self.__current_index] + ".mp4")
+        self.__video_capture.release()
+        self.__video_capture = cv2.VideoCapture(self.__video_path_current)
+        ret, frame = self.__video_capture.read()
+        self.__video_source_changed_signal.emit(self.__channel_idx)
         self.__current_video_frame = frame
-
 
     def get_current_video_frame(self):
         return self.__current_video_frame

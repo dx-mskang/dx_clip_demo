@@ -11,6 +11,7 @@ class UIConfig:
     number_of_alarms = 2
     num_channels = 16
     sentence_input_min_width = 400
+    video_consumer_queue_size = 1
 
 class UIHelper:
     def __init__(self, ctx: QMainWindow, ui_config: UIConfig):
