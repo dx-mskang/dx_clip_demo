@@ -96,23 +96,22 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
     def video_worker_setup(self):
         for channel_idx in range(self.ui_config.num_channels):
+            sentence_list_updated_signal = self.__view_model.get_sentence_list_updated_signal()
             video_producer = VideoProducer(
                 channel_idx,
                 self.base_path,
                 self.adjusted_video_path_lists[channel_idx],
                 self.ui_helper.video_size,
-                self.__view_model.get_sentence_list_updated_signal()
+                sentence_list_updated_signal,
             )
 
             [scaled_video_frame_updated_signal, origin_video_frame_updated_signal,
              video_source_changed_signal] = video_producer.get_video_frame_updated_signal()
             scaled_video_frame_updated_signal.connect(self.update_scaled_video_frame)
 
-            sentence_list_update_signal = self.__view_model.get_sentence_list_updated_signal()
-
             video_consumer = ClipVideoConsumer(channel_idx, self.ui_config.number_of_alarms,
                                                origin_video_frame_updated_signal, video_source_changed_signal,
-                                               sentence_list_update_signal,
+                                               sentence_list_updated_signal,
                                                self.__view_model)
 
             video_consumer.get_update_each_fps_signal().connect(self.update_each_fps)

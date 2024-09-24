@@ -53,7 +53,7 @@ class SentenceModel(Model):
         with self.__sentence_lock:
         # self.mutex.lock()
         # try:
-            return self.__sentence_list.copy()
+            return copy.deepcopy(self.__sentence_list)
         # finally:
         #     self.mutex.unlock()
 

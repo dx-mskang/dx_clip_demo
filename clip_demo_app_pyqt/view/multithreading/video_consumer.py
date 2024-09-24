@@ -1,3 +1,5 @@
+import logging
+import traceback
 from abc import abstractmethod
 import time
 from queue import Queue
@@ -32,19 +34,22 @@ class VideoConsumer(QThread):
         video_source_changed_signal.connect(self.__video_source_changed)
 
     def run(self):
-        # TODO : 불필요 여부 확인 필요
-        # self.render_text_list()
-        while self.__running:
-            if self.__pause_thread:
-                time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
-                continue
+        logging.debug("VideoConsumer thread started")
+        try:
+            while self.__running:
+                if self.__pause_thread:
+                    time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
+                    continue
 
-            frame = self.__pop_origin_video_frame()
-            if frame is None:
-                time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
-                continue
-            else:
-                self.process(frame)
+                frame = self.__pop_origin_video_frame()
+                if frame is None:
+                    time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
+                    continue
+                else:
+                    self.process(frame)
+        except Exception as e:
+            logging.error(f"Error in VideoConsumer run method: {e}")
+            traceback.print_exc()
 
     def stop(self):
         self.__running = False

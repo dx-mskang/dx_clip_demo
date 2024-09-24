@@ -28,11 +28,10 @@ class ClipVideoConsumer(VideoConsumer):
                  video_source_changed_signal: pyqtSignal, sentence_list_update_signal: pyqtSignal, ctx: ClipViewModel):
         super().__init__(channel_idx, origin_video_frame_updated_signal, video_source_changed_signal)
         self.ctx = ctx
-        self.__similarity_list_lock = threading.Lock()
 
         self.__number_of_alarms = number_of_alarms
-        self.__similarity_list = None
-        self.__init_similarity_list()
+        self.__np_array_similarity = None
+        self.__init_np_array_similarity()
         self.__last_update_time_text = 0  # Initialize the last update time
         self.__interval_update_time_text = 1.0  # Set update interval to 1 seconds (adjust as needed)
         self.__frame_count = 0
@@ -42,10 +41,13 @@ class ClipVideoConsumer(VideoConsumer):
         self.image_transform = self.__transform(224)
         self.video_mask = torch.ones(1, 1)
 
-        sentence_list_update_signal.connect(self.__init_similarity_list)
+        sentence_list_update_signal.connect(self.__init_np_array_similarity)
 
     @overrides()
     def process(self, frame):
+        if frame is None:
+            print("QImage is None on VideoConsumer" + str(frame))
+            return
         # print("get QImage on VideoConsumer" + str(frame))
 
         # for prevent UI freeze
@@ -73,15 +75,26 @@ class ClipVideoConsumer(VideoConsumer):
         # print(index, " : ", video_pred.shape)
 
         sentence_vector_list = self.ctx.get_sentence_vector_list()
+        sentence_list = self.ctx.get_sentence_list()
+        sentence_alarm_threshold_list = self.ctx.get_sentence_alarm_threshold_list()
 
         for text_index in range(len(sentence_vector_list)):
-            ret = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
+            try:
+                ret = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
+            except Exception as ex:
+                traceback.print_exc()
+                print(ex)
+                return
             similarity_list.append(ret)
+
         try:
             if len(similarity_list) > 0:
-                similarity_list = np.stack(similarity_list).reshape(len(sentence_vector_list))
-                with self.__similarity_list_lock:
-                    self.__similarity_list += similarity_list
+                np_array_similarity = np.stack(similarity_list).reshape(len(sentence_vector_list))
+                if np_array_similarity.shape == self.__np_array_similarity.shape:
+                    self.__np_array_similarity += np_array_similarity
+                else:
+                    return
+
         except Exception as ex:
             traceback.print_exc()
             print(ex)
@@ -98,9 +111,8 @@ class ClipVideoConsumer(VideoConsumer):
     # for index in range(len(video_thread_list)):
 
         # vCap = video_thread_list[index]
-        with self.__similarity_list_lock:
-            self.__update_argmax_text(self.ctx.get_sentence_list(), self.__similarity_list / (self.__frame_count + 1),
-                                      self.ctx.get_sentence_alarm_threshold_list())
+        self.__update_argmax_text(sentence_list, self.__np_array_similarity / (self.__frame_count + 1),
+                                  sentence_alarm_threshold_list)
 
         if self._channel_idx == 0:
             self._update_overall_fps()
@@ -161,7 +173,8 @@ class ClipVideoConsumer(VideoConsumer):
 
     @overrides()
     def _cleanup(self):
-        self.__init_similarity_list()
+
+        self.__init_np_array_similarity()
         self.__last_update_time_text = 0  # Initialize the last update time
         self.__interval_update_time_text = 1  # Set update interval to 1 seconds (adjust as needed)
         self.__frame_count = 0
@@ -199,6 +212,5 @@ class ClipVideoConsumer(VideoConsumer):
         retrieve_logits = torch.matmul(sequence_output, visual_output.t())
         return retrieve_logits
 
-    def __init_similarity_list(self):
-        with self.__similarity_list_lock:
-            self.__similarity_list = np.zeros((len(self.ctx.get_sentence_list())))
+    def __init_np_array_similarity(self):
+        self.__np_array_similarity = np.zeros((len(self.ctx.get_sentence_list())))
