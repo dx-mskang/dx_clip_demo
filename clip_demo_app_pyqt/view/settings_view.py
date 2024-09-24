@@ -13,10 +13,14 @@ class SettingsView(QMainWindow):
 
         # CLI arguments
         self.base_path = args.base_path
-        self.number_of_channels = args.number_of_channels
         self.max_words = args.max_words
         self.feature_framerate = args.feature_framerate
         self.slice_framepos = args.slice_framepos
+
+        # app config setting
+        self.number_of_channels = args.number_of_channels
+        self.terminal_mode = args.terminal_mode
+        self.camera_mode = args.camera_mode
 
         # input data setting
         self.video_path_lists = input_data.video_path_lists
@@ -56,6 +60,11 @@ class SettingsView(QMainWindow):
         self.show_percent_checkbox.setChecked(self.ui_config.show_percent)
         layout.addWidget(self.show_percent_checkbox)
 
+        # Show Score checkbox
+        self.show_score_checkbox = QCheckBox("Display Score", self)
+        self.show_score_checkbox.setChecked(self.ui_config.show_score)
+        layout.addWidget(self.show_score_checkbox)
+
         # Show FPS Label checkbox
         self.show_each_fps_label_checkbox = QCheckBox("Display FPS for each video", self)
         self.show_each_fps_label_checkbox.setChecked(self.ui_config.show_each_fps_label)
@@ -63,8 +72,13 @@ class SettingsView(QMainWindow):
 
         # Terminal Mode checkbox
         self.terminal_mode_checkbox = QCheckBox("Terminal Mode", self)
-        self.terminal_mode_checkbox.setChecked(self.ui_config.terminal_mode)
+        self.terminal_mode_checkbox.setChecked(self.terminal_mode)
         layout.addWidget(self.terminal_mode_checkbox)
+
+        # Camera Mode checkbox
+        self.camera_mode_checkbox = QCheckBox("Camera Mode", self)
+        self.camera_mode_checkbox.setChecked(self.camera_mode)
+        layout.addWidget(self.camera_mode_checkbox)
 
         # Fullscreen Mode checkbox
         self.fullscreen_mode_checkbox = QCheckBox("Fullscreen Mode", self)
@@ -88,14 +102,22 @@ class SettingsView(QMainWindow):
     def apply_settings(self):
         # Apply the values entered by the user
         self.base_path = self.features_path_input.text()
-        self.adjusted_video_path_lists = self.get_adjust_video_path_lists(self.video_path_lists,
-                                                                          self.number_of_channels_input.value())
+
+        # app config (using args)
         self.ui_config.num_channels = self.number_of_channels_input.value()
-        self.ui_config.show_percent = self.show_percent_checkbox.isChecked()
-        self.ui_config.show_each_fps_label = self.show_each_fps_label_checkbox.isChecked()
         self.ui_config.terminal_mode = self.terminal_mode_checkbox.isChecked()
+        self.ui_config.camera_mode = self.camera_mode_checkbox.isChecked()
+
+        # add config (hard-coded)
+        self.ui_config.show_percent = self.show_percent_checkbox.isChecked()
+        self.ui_config.show_score = self.show_score_checkbox.isChecked()
+        self.ui_config.show_each_fps_label = self.show_each_fps_label_checkbox.isChecked()
         self.ui_config.fullscreen_mode = self.fullscreen_mode_checkbox.isChecked()
         self.ui_config.dark_theme = self.dark_theme_checkbox.isChecked()
+
+        # adjust_video_path_lists and num_channels
+        [self.adjusted_video_path_lists, self.ui_config.num_channels] = self.get_adjust_video_path_lists(
+            self.video_path_lists, self.ui_config.num_channels, self.ui_config.camera_mode)
 
         # Close the settings window and start the main app
         self.close()
@@ -105,14 +127,25 @@ class SettingsView(QMainWindow):
         self.success_cb(self)
 
     @staticmethod
-    def get_adjust_video_path_lists(gt_video_path_lists, number_of_channels):
+    def get_adjust_video_path_lists(video_path_lists, number_of_channels, camera_mode):
+        result_num_of_channels = number_of_channels
+
         if number_of_channels <= 1:
-            gt_video_path_lists_for_single = []
+            video_path_lists_for_single = []
             enriched_path_list = []
-            for path_list in gt_video_path_lists:
+            for path_list in video_path_lists:
                 for path in path_list:
                     enriched_path_list.append(path)
-            gt_video_path_lists_for_single.append(enriched_path_list)
-            return gt_video_path_lists_for_single
+            video_path_lists_for_single.append(enriched_path_list)
+            result_video_path_lists = video_path_lists_for_single
+
+            if camera_mode:
+                result_video_path_lists[0] = ["/dev/video0"]
         else:
-            return gt_video_path_lists[:number_of_channels]
+            result_video_path_lists = video_path_lists[:number_of_channels]
+
+            if camera_mode:
+                result_video_path_lists.append(["/dev/video0"])
+                result_num_of_channels = number_of_channels + 1
+
+        return [result_video_path_lists, result_num_of_channels]

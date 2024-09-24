@@ -19,7 +19,7 @@ class ClipVideoConsumer(VideoConsumer):
     __dxnn_video_encoder = DXVideoEncoder(ParserUtil.get_args().video_encoder_dxnn)
 
     __clear_text_output_signal = pyqtSignal(int)
-    __update_text_output_signal = pyqtSignal(int, str, int)
+    __update_text_output_signal = pyqtSignal(int, str, int, float)
 
     # TODO : 불필요 여부 확인 필요
     # render_text_list_signal = pyqtSignal()
@@ -163,8 +163,7 @@ class ClipVideoConsumer(VideoConsumer):
                 else:
                     ret_level = int((value - min_value) / (max_value - min_value) * 100)
                 if value > alarm_threshold:
-                    # print(value, ", ", alarm_threshold)
-                    argmax_info_list.append({"text": text_list[t], "percent": ret_level})
+                    argmax_info_list.append({"text": text_list[t], "percent": ret_level, "score": value})
             except Exception as ex:
                 # traceback.print_exc()
                 logging.debug(ex)
@@ -172,7 +171,7 @@ class ClipVideoConsumer(VideoConsumer):
 
         self.__clear_text_output_signal.emit(self._channel_idx)
         for argmax_info in argmax_info_list:
-            self.__update_text_output_signal.emit(self._channel_idx, argmax_info["text"], argmax_info["percent"])
+            self.__update_text_output_signal.emit(self._channel_idx, argmax_info["text"], argmax_info["percent"], argmax_info["score"])
 
         self.__last_update_time_text = current_update_time_text
 

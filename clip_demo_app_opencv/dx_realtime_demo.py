@@ -204,7 +204,7 @@ class VideoThread(threading.Thread):
         self.pop_last_text = False
         self.new_text = ""
 
-        self.debug_mode = True
+        self.debug_mode = False
 
         if self.debug_mode:
             self.text_line_height = 20
@@ -239,13 +239,12 @@ class VideoThread(threading.Thread):
                 i += 1
 
         wnd_prop_id = cv2.WND_PROP_FULLSCREEN
-        wnd_prop_value = cv2.WINDOW_GUI_EXPANDED
+        wnd_prop_value = cv2.WINDOW_FULLSCREEN
         if self.debug_mode:
             wnd_prop_value = cv2.WINDOW_KEEPRATIO
 
         cv2.namedWindow('Video', wnd_prop_id)
         cv2.setWindowProperty('Video', wnd_prop_id, wnd_prop_value)
-
         while not self.stop_thread:
             ret, self.original = self.cap.read()
             if global_quit:

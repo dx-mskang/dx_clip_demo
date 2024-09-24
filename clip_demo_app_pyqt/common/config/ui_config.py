@@ -3,13 +3,16 @@ import math
 from PyQt5.QtWidgets import QMainWindow, QApplication
 
 class UIConfig:
+    num_channels = 16
+    terminal_mode = 0
+    camera_mode = 0
+
     show_percent = False
+    show_score = False
     show_each_fps_label = False
-    terminal_mode = True
     fullscreen_mode = True
     dark_theme = True
     number_of_alarms = 2
-    num_channels = 16
     sentence_input_min_width = 400
     video_consumer_queue_size = 1
 
@@ -71,4 +74,6 @@ class UIHelper:
         elif num_channels <= 16:
             return 4, 4
         else:
-            return math.ceil(num_channels ** 0.5) if num_channels > 1 else 1  # 1일 경우 그리드 필요 없음
+            cols = math.ceil(math.sqrt(num_channels))  # 컬럼 수는 정사각형 형태에 가깝게 계산
+            rows = math.ceil(num_channels / cols)  # 행 수는 총 채널 수를 컬럼 수로 나눈 값
+            return cols, rows

@@ -10,6 +10,6 @@ case $select in
         0)./run_pia_multi_demo.sh;;
         1)./run_pia_single_demo.sh;;
         2)./run_pia_single_demo_camera_mode.sh;;
-        *)/run_pia_multi_demo.sh;;
+        *)./run_pia_multi_demo.sh;;
 esac
 

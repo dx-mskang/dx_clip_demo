@@ -1,5 +1,5 @@
 class InputData:
-    default_sentence_threshold = [0.23, 0.31, 0.26]
+    default_sentence_threshold = [0.200, 0.250, 0.225]
     video_path_lists: list = [
         # [
         #     "/dev/video0"

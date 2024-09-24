@@ -277,11 +277,15 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def clear_text_output(self, idx: int):
         self.text_output_list[idx].clear()
 
-    def update_text_output(self, idx: int, text: str, progress: int):
+    def update_text_output(self, idx: int, text: str, progress: int, score: float):
+        prefix_str = ""
         if self.ui_config.show_percent:
-            self.text_output_list[idx].append(" [" + str(progress) + "%] " + text)
-        else:
-            self.text_output_list[idx].append(text)
+            prefix_str += "[" + str(progress) + "%]"
+
+        if self.ui_config.show_score:
+            prefix_str +=  "[" + str(round(score, 4)) + "]"
+
+        self.text_output_list[idx].append(prefix_str + text)
 
     def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING, position=ToastPosition.CENTER):
         toast = Toast(self)

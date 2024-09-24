@@ -23,9 +23,9 @@ class VideoProducer(QThread):
         self.__blocking_mode = True
         # self.__blocking_mode = False
 
-        self.__next_video_lock = threading.Lock()
+        self.__change_video_lock = threading.Lock()
 
-        sentence_list_updated_signal.connect(self.__next_video)
+        sentence_list_updated_signal.connect(self.__change_video)
 
         self.__channel_idx = channel_idx
 
@@ -71,23 +71,32 @@ class VideoProducer(QThread):
             # Original QImage를 video Consumer 스레드로 전송
             self.__origin_video_frame_updated_signal.emit(self.__channel_idx, copy.deepcopy(self.__current_video_frame))
 
-        with self.__next_video_lock:
+        with self.__change_video_lock:
             self.__video_capture.release()
 
     def __update_current_video_frame(self):
-        with self.__next_video_lock:
+        with self.__change_video_lock:
             ret, frame = self.__video_capture.read()
         if not ret:
-            self.__next_video()
+            self.__change_video(True)
         else:
             self.__current_video_frame = frame
 
-    def __next_video(self):
+    def __change_video(self, is_next=False):
+        camera_mode = False
+        if self.__video_path_list[0] == '/dev/video0':
+            camera_mode = True
+            is_next = False
 
-        self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
-        self.__video_path_current = os.path.join(self.__base_path,
-                                                 self.__video_path_list[self.__current_index] + ".mp4")
-        with self.__next_video_lock:
+        if is_next:
+            self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
+
+        if camera_mode:
+            self.__video_path_current = os.path.join(self.__video_path_list[self.__current_index])
+        else:
+            self.__video_path_current = os.path.join(self.__base_path,
+                                                     self.__video_path_list[self.__current_index] + ".mp4")
+        with self.__change_video_lock:
             self.__video_capture.release()
             self.__video_capture = cv2.VideoCapture(self.__video_path_current)
             ret, frame = self.__video_capture.read()
