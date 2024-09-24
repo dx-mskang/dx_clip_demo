@@ -1,4 +1,4 @@
-import threading
+import logging
 import time
 import traceback
 
@@ -82,8 +82,8 @@ class ClipVideoConsumer(VideoConsumer):
             try:
                 ret = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
             except Exception as ex:
-                traceback.print_exc()
-                print(ex)
+                # traceback.print_exc()
+                logging.debug(ex)
                 return
             similarity_list.append(ret)
 
@@ -96,8 +96,8 @@ class ClipVideoConsumer(VideoConsumer):
                     return
 
         except Exception as ex:
-            traceback.print_exc()
-            print(ex)
+            # traceback.print_exc()
+            logging.debug(ex)
             return
 
         e = time.perf_counter_ns()
@@ -151,19 +151,24 @@ class ClipVideoConsumer(VideoConsumer):
         sorted_index = np.argsort(logit_list)
         indices_index = np.array(sorted(sorted_index[(-1 * self.__number_of_alarms):]))
         for t in indices_index:
-            value = logit_list[t]
-            min_value = alarm_list[t][0]
-            max_value = alarm_list[t][1]
-            alarm_threshold = alarm_list[t][2]
-            if value < min_value:
-                ret_level = 0
-            elif value > max_value:
-                ret_level = 100
-            else:
-                ret_level = int((value - min_value) / (max_value - min_value) * 100)
-            if value > alarm_threshold:
-                # print(value, ", ", alarm_threshold)
-                argmax_info_list.append({"text": text_list[t], "percent": ret_level})
+            try:
+                value = logit_list[t]
+                min_value = alarm_list[t][0]
+                max_value = alarm_list[t][1]
+                alarm_threshold = alarm_list[t][2]
+                if value < min_value:
+                    ret_level = 0
+                elif value > max_value:
+                    ret_level = 100
+                else:
+                    ret_level = int((value - min_value) / (max_value - min_value) * 100)
+                if value > alarm_threshold:
+                    # print(value, ", ", alarm_threshold)
+                    argmax_info_list.append({"text": text_list[t], "percent": ret_level})
+            except Exception as ex:
+                # traceback.print_exc()
+                logging.debug(ex)
+                continue
 
         self.__clear_text_output_signal.emit(self._channel_idx)
         for argmax_info in argmax_info_list:
@@ -173,7 +178,6 @@ class ClipVideoConsumer(VideoConsumer):
 
     @overrides()
     def _cleanup(self):
-
         self.__init_np_array_similarity()
         self.__last_update_time_text = 0  # Initialize the last update time
         self.__interval_update_time_text = 1  # Set update interval to 1 seconds (adjust as needed)
@@ -205,8 +209,8 @@ class ClipVideoConsumer(VideoConsumer):
             if sequence_output.ndim > 1:
                 sequence_output = sequence_output.squeeze(1)
         except Exception as ex:
-            traceback.print_exc()
-            print(ex)
+            # traceback.print_exc()
+            logging.debug(ex)
             return
         sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True)
         retrieve_logits = torch.matmul(sequence_output, visual_output.t())

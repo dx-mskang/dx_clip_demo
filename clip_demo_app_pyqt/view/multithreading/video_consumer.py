@@ -34,7 +34,7 @@ class VideoConsumer(QThread):
         video_source_changed_signal.connect(self.__video_source_changed)
 
     def run(self):
-        logging.debug("VideoConsumer thread started")
+        # logging.debug("VideoConsumer thread started")
         try:
             while self.__running:
                 if self.__pause_thread:
@@ -47,9 +47,10 @@ class VideoConsumer(QThread):
                     continue
                 else:
                     self.process(frame)
-        except Exception as e:
-            logging.error(f"Error in VideoConsumer run method: {e}")
-            traceback.print_exc()
+        except Exception as ex:
+            # traceback.print_exc()
+            logging.error(f"Error in VideoConsumer run method: {ex}")
+            pass
 
     def stop(self):
         self.__running = False

@@ -71,20 +71,23 @@ class VideoProducer(QThread):
             # Original QImage를 video Consumer 스레드로 전송
             self.__origin_video_frame_updated_signal.emit(self.__channel_idx, copy.deepcopy(self.__current_video_frame))
 
-        self.__video_capture.release()
+        with self.__next_video_lock:
+            self.__video_capture.release()
 
     def __update_current_video_frame(self):
-        ret, frame = self.__video_capture.read()
+        with self.__next_video_lock:
+            ret, frame = self.__video_capture.read()
         if not ret:
             self.__next_video()
         else:
             self.__current_video_frame = frame
 
     def __next_video(self):
+
+        self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
+        self.__video_path_current = os.path.join(self.__base_path,
+                                                 self.__video_path_list[self.__current_index] + ".mp4")
         with self.__next_video_lock:
-            self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
-            self.__video_path_current = os.path.join(self.__base_path,
-                                                     self.__video_path_list[self.__current_index] + ".mp4")
             self.__video_capture.release()
             self.__video_capture = cv2.VideoCapture(self.__video_path_current)
             ret, frame = self.__video_capture.read()
