@@ -34,7 +34,7 @@ class VideoConsumer(QThread):
         video_source_changed_signal.connect(self.__video_source_changed)
 
     def run(self):
-        # logging.debug("VideoConsumer thread started")
+        logging.debug("VideoConsumer thread started, channel_id: " + str(self._channel_idx))
         try:
             while self.__running:
                 if self.__pause_thread:
@@ -55,10 +55,6 @@ class VideoConsumer(QThread):
     def stop(self):
         self.__running = False
         self.wait()
-
-    # TODO : 불필요 여부 확인 필요
-    # def render_text_list(self):
-    #     self.render_text_list_signal.emit()
 
     def resume(self):
         self.__pause_thread = False

@@ -21,9 +21,6 @@ class ClipVideoConsumer(VideoConsumer):
     __clear_text_output_signal = pyqtSignal(int)
     __update_text_output_signal = pyqtSignal(int, str, int, float)
 
-    # TODO : 불필요 여부 확인 필요
-    # render_text_list_signal = pyqtSignal()
-
     def __init__(self, channel_idx: int, number_of_alarms: list, origin_video_frame_updated_signal: pyqtSignal,
                  video_source_changed_signal: pyqtSignal, sentence_list_update_signal: pyqtSignal, ctx: ClipViewModel):
         super().__init__(channel_idx, origin_video_frame_updated_signal, video_source_changed_signal)
@@ -46,33 +43,20 @@ class ClipVideoConsumer(VideoConsumer):
     @overrides()
     def process(self, frame):
         if frame is None:
-            print("QImage is None on VideoConsumer" + str(frame))
+            logging.debug("QImage is None on VideoConsumer" + str(frame))
             return
-        # print("get QImage on VideoConsumer" + str(frame))
 
         # for prevent UI freeze
         time.sleep(0.3)
 
-    # video_thread_list = self.ctx.get_video_thread_list()
-    # for index in range(len(video_thread_list)):
         s = time.perf_counter_ns()
 
         similarity_list = []
-        # vCap = video_thread_list[index]
 
-        # TODO : 동영상 변경되었을때 감지하여 초기화 추가 필요 : self.cleanup()
-        # if vCap.status_video_source():
-        #     vCap.similarity_list = np.zeros((len(self.ctx.get_sentence_list())))
-        #     vCap.__last_update_time_text = 0
-        #     __frame_count = 0
-
-        # frame = vCap.get_current_video_frame.copy()
-        # TODO : copy() 필요할지 확인 필요
         dxnn_s = time.perf_counter_ns()
         input_data = self.image_transform(Image.fromarray(frame).convert("RGB"))
         video_pred = self.__dxnn_video_encoder.run(input_data)[0]
         dxnn_e = time.perf_counter_ns()
-        # print(index, " : ", video_pred.shape)
 
         sentence_vector_list = self.ctx.get_sentence_vector_list()
         sentence_list = self.ctx.get_sentence_list()
@@ -108,9 +92,6 @@ class ClipVideoConsumer(VideoConsumer):
 
         self._update_each_fps(dxnn_fps, sol_fps)
 
-    # for index in range(len(video_thread_list)):
-
-        # vCap = video_thread_list[index]
         self.__update_argmax_text(sentence_list, self.__np_array_similarity / (self.__frame_count + 1),
                                   sentence_alarm_threshold_list)
 
@@ -118,19 +99,11 @@ class ClipVideoConsumer(VideoConsumer):
             self._update_overall_fps()
         self.__frame_count += 1
 
-    # TODO : 불필요 여부 확인 필요
-    # def refresh_sentence_list(self):
-    #     self.render_text_list_signal.emit()
-
     def get_update_text_output_signal(self):
         return self.__update_text_output_signal
 
     def get_clear_text_output_signal(self):
         return self.__clear_text_output_signal
-
-    # TODO : 불필요 여부 확인 필요
-    # def get_render_text_list_signal(self):
-    #     return self.__render_text_list_signal
 
     @staticmethod
     def __transform(n_px):

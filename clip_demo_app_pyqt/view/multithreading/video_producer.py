@@ -1,4 +1,5 @@
 import copy
+import logging
 import os
 import threading
 import time
@@ -27,7 +28,7 @@ class VideoProducer(QThread):
 
         sentence_list_updated_signal.connect(self.__change_video)
 
-        self.__channel_idx = channel_idx
+        self._channel_idx = channel_idx
 
         self.__current_index = 0
         if video_path_list[0] == "/dev/video0":
@@ -46,7 +47,7 @@ class VideoProducer(QThread):
         self.__current_video_frame = np.zeros((self.__video_size[1], self.__video_size[0], 3), dtype=np.uint8)
 
     def run(self):
-        # print("run", QThread.currentThread())
+        logging.debug("VideoProducer thread started, channel_id: " + str(self._channel_idx))
 
         self.__update_current_video_frame()
         while self.__running:
@@ -66,10 +67,10 @@ class VideoProducer(QThread):
             scaled_image = convert_to_qt_format.scaled(self.__video_size[0], self.__video_size[1], Qt.KeepAspectRatio)
 
             # Scaled QImage를 메인 스레드로 전송
-            self.__scaled_video_frame_updated_signal.emit(self.__channel_idx, scaled_image)
+            self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
 
             # Original QImage를 video Consumer 스레드로 전송
-            self.__origin_video_frame_updated_signal.emit(self.__channel_idx, copy.deepcopy(self.__current_video_frame))
+            self.__origin_video_frame_updated_signal.emit(self._channel_idx, copy.deepcopy(self.__current_video_frame))
 
         with self.__change_video_lock:
             self.__video_capture.release()
@@ -101,10 +102,10 @@ class VideoProducer(QThread):
             self.__video_capture = cv2.VideoCapture(self.__video_path_current)
             ret, frame = self.__video_capture.read()
             if ret:
-                self.__video_source_changed_signal.emit(self.__channel_idx)
+                self.__video_source_changed_signal.emit(self._channel_idx)
                 self.__current_video_frame = frame
             else:
-                print("fail to read video frame : " + str(ret))
+                logging.debug("fail to read video frame : " + str(ret))
 
     def get_current_video_frame(self):
         return self.__current_video_frame

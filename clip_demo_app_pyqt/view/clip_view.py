@@ -1,5 +1,4 @@
 import threading
-import time
 from typing import List
 
 import qdarkstyle
@@ -22,7 +21,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __init__(self, view_model: ClipViewModel, ui_config: UIConfig, base_path, adjusted_video_path_lists):
         QMainWindow.__init__(self)
         QObject.__init__(self)
-        # self.mutex = QMutex()
         self.__fps_lock = threading.Lock()
         self.__view_model = view_model
 
@@ -325,8 +323,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
     def update_overall_fps(self):
         with self.__fps_lock:
-        # self.mutex.lock()
-        # try:
             if len(self.each_fps_info_list) > 0:
                 sum_overall_dxnn_fps = 0
                 sum_overall_sol_fps = 0
@@ -339,20 +335,14 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
                 self.overall_fps_label.setText(
                     f" NPU FPS: {overall_dxnn_fps:.2f}, Render FPS: {overall_sol_fps:.2f} ")
-        # finally:
-        #     self.mutex.unlock()
 
     def update_each_fps(self, thread_idx, dxnn_fps, sol_fps):
         with self.__fps_lock:
-        # self.mutex.lock()
-        # try:
             if self.ui_helper.ui_config.show_each_fps_label:
                 self.each_fps_label_list[thread_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, Render FPS: {sol_fps:.2f} ")
 
             self.each_fps_info_list[thread_idx]["dxnn_fps"] = dxnn_fps
             self.each_fps_info_list[thread_idx]["sol_fps"] = sol_fps
-        # finally:
-        #     self.mutex.unlock()
 
     @overrides
     def closeEvent(self, event):
