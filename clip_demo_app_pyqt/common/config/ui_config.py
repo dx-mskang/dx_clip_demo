@@ -14,6 +14,8 @@ class UIConfig:
     dark_theme = True
     number_of_alarms = 2
     sentence_input_min_width = 400
+    sentence_list_scroll_area_min_height = 150
+    sentence_list_scroll_area_fixed_width = 450
     video_consumer_queue_size = 1
 
 class UIHelper:
@@ -24,14 +26,19 @@ class UIHelper:
         self.large_font = ctx.font()
         self.large_font.setPointSize(18)
         self.large_font_line_height = 44
+        self.large_font_bottom_padding = 22
+        self.large_font_prefix_text_fixed_width = 200
 
         self.small_font = ctx.font()
         self.small_font.setPointSize(9)
         self.small_font_line_height = 22
+        self.small_font_bottom_padding = 11
+        self.small_font_prefix_text_fixed_width = 100
 
         self.smaller_font = ctx.font()
         self.smaller_font.setPointSize(7)
         self.smaller_font_line_height = 16
+        self.smaller_font_bottom_padding = 8
 
         screen_resolution = QApplication.desktop().screenGeometry()
         self.window_w = screen_resolution.width()

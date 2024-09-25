@@ -21,11 +21,13 @@ class SentenceModel(Model):
             self.__sentence_vector_list.append(SentenceVectorUtil.get_sentence_vector_list([text_input])[0])
             self.__sentence_alarm_threshold_list.append(InputData.default_sentence_threshold)
 
-    def pop_sentence(self):
+    def pop_sentence(self, index=None):
         with self.__sentence_lock:
-            self.__sentence_list.pop(-1)
-            self.__sentence_vector_list.pop(-1)
-            self.__sentence_alarm_threshold_list.pop(-1)
+            if index is None:
+                index = -1
+            self.__sentence_list.pop(index)
+            self.__sentence_vector_list.pop(index)
+            self.__sentence_alarm_threshold_list.pop(index)
 
     def clear_sentence(self):
         with self.__sentence_lock:

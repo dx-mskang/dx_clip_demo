@@ -19,8 +19,8 @@ class SentenceViewModel(ViewModel):
         self.__sentence_model.push_sentence(sentence)
         self._sentence_list_updated_signal.emit()
 
-    def pop_sentence(self):
-        self.__sentence_model.pop_sentence()
+    def pop_sentence(self, index=None):
+        self.__sentence_model.pop_sentence(index)
         self._sentence_list_updated_signal.emit()
 
     def clear_sentence(self):
