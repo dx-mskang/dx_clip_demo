@@ -15,8 +15,8 @@ class SentenceViewModel(ViewModel):
     def get_sentence_list_updated_signal(self):
         return self._sentence_list_updated_signal
 
-    def push_sentence(self, sentence):
-        self.__sentence_model.push_sentence(sentence)
+    def push_sentence(self, sentence, score_min, score_max, score_threshold):
+        self.__sentence_model.push_sentence(sentence, score_min, score_max, score_threshold)
         self._sentence_list_updated_signal.emit()
 
     def pop_sentence(self, index=None):
@@ -32,6 +32,3 @@ class SentenceViewModel(ViewModel):
 
     def get_sentence_vector_list(self) -> list:
         return self.__sentence_model.get_sentence_vector_list()
-
-    def get_sentence_alarm_threshold_list(self) -> list:
-        return self.__sentence_model.get_sentence_alarm_threshold_list()

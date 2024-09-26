@@ -1,11 +1,10 @@
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QLineEdit, QSpinBox, QCheckBox, QPushButton, QWidget
 
 from clip_demo_app_pyqt.common.config.ui_config import UIConfig
-from clip_demo_app_pyqt.data.input_data import InputData
 
 
 class SettingsView(QMainWindow):
-    def __init__(self, args, input_data: InputData, success_cb):
+    def __init__(self, args, success_cb):
         super().__init__()
         self.model = None
         self.view_model = None
@@ -23,9 +22,11 @@ class SettingsView(QMainWindow):
         self.camera_mode = args.camera_mode
 
         # input data setting
-        self.video_path_lists = input_data.video_path_lists
-        self.sentence_alarm_threshold_list = input_data.sentence_alarm_threshold_list
-        self.sentence_list = input_data.sentence_list
+        from clip_demo_app_pyqt.data.input_data import InputData
+        from clip_demo_app_pyqt.model.sentence_model import Sentence
+
+        self.video_path_lists = InputData.video_path_lists
+        self.sentence_list: list[Sentence] = InputData.sentence_list
 
         self.success_cb = success_cb
 
@@ -65,11 +66,6 @@ class SettingsView(QMainWindow):
         self.show_score_checkbox.setChecked(self.ui_config.show_score)
         layout.addWidget(self.show_score_checkbox)
 
-        # Show FPS Label checkbox
-        self.show_each_fps_label_checkbox = QCheckBox("Display FPS for each video", self)
-        self.show_each_fps_label_checkbox.setChecked(self.ui_config.show_each_fps_label)
-        layout.addWidget(self.show_each_fps_label_checkbox)
-
         # Terminal Mode checkbox
         self.terminal_mode_checkbox = QCheckBox("Terminal Mode", self)
         self.terminal_mode_checkbox.setChecked(self.terminal_mode)
@@ -89,6 +85,11 @@ class SettingsView(QMainWindow):
         self.dark_theme_checkbox = QCheckBox("Dark Theme", self)
         self.dark_theme_checkbox.setChecked(self.ui_config.dark_theme)
         layout.addWidget(self.dark_theme_checkbox)
+
+        # Show FPS Label checkbox
+        self.show_each_fps_label_checkbox = QCheckBox("Display FPS for each video", self)
+        self.show_each_fps_label_checkbox.setChecked(self.ui_config.show_each_fps_label)
+        layout.addWidget(self.show_each_fps_label_checkbox)
 
         # Done button
         self.done_button = QPushButton("Done", self)

@@ -1,5 +1,7 @@
 class InputData:
-    default_sentence_threshold = [0.200, 0.250, 0.225]
+    default_sentence_score_min = 0.200
+    default_sentence_score_max = 0.250
+    default_sentence_score_threshold = 0.225
     video_path_lists: list = [
         # [
         #     "/dev/video0"
@@ -53,86 +55,86 @@ class InputData:
             "demo_videos/two_childrens_are_fighting",
         ],
     ]
-    sentence_alarm_threshold_list: list = [
-        [0.27, 0.29, 0.28],  # "The subway is crowded with people",
-        [0.27, 0.29, 0.28],  # "People is crowded in the subway",
 
-        [0.21, 0.25, 0.225],  # "Heavy objects are fallen",
+    from clip_demo_app_pyqt.model.sentence_model import Sentence
+    sentence_list: list[Sentence] = [
+        # video : "demo_videos/crowded_in_subway",
+        Sentence("The subway is crowded with people",
+            0.27, 0.29, 0.28),
+        Sentence("People is crowded in the subway",
+            0.27, 0.29, 0.28),
 
-        [0.23, 0.25, 0.24],  # "Physical confrontation occurs between two people",
-        [0.22, 0.25, 0.23],  # "Violence with kicking and punching",
+        # video : "demo_videos/heavy_structure_falling",
+        Sentence("Heavy objects are fallen",
+            0.21, 0.25, 0.225),
 
-        [0.27, 0.29, 0.28],  # "Terrorism is taking place at the airport",
-        [0.23, 0.26, 0.247],  # "Terrorist is shooting at people",
+        # video :
+        Sentence("Physical confrontation occurs between two people",
+            0.23, 0.25, 0.24),
+        Sentence("Violence with kicking and punching",
+            0.22, 0.25, 0.23),
 
-        [0.24, 0.28, 0.255],  # "The water is exploding out",
-        [0.24, 0.28, 0.255],  # "The water is gushing out",
+        # video :
+        Sentence("Terrorism is taking place at the airport",
+            0.27, 0.29, 0.28),
+        Sentence("Terrorist is shooting at people",
+            0.23, 0.26, 0.247),
 
-        [0.23, 0.26, 0.24],  # "Fire is coming out of the car",
-        [0.24, 0.28, 0.26],  # "The car is exploding",
+        # video :
+        Sentence("The water is exploding out",
+            0.24, 0.28, 0.255),
+        Sentence("The water is gushing out",
+            0.24, 0.28, 0.255),
 
-        [0.23, 0.26, 0.24],  # "The electrical outlet on the wall is emitting smoke",
-        [0.23, 0.26, 0.24],  # "Smoke is rising from the electrical outlet."
+        # video :
+        Sentence("Fire is coming out of the car",
+            0.23, 0.26, 0.24),
+        Sentence("The car is exploding",
+            0.24, 0.28, 0.26),
 
-        [0.23, 0.26, 0.24],  # "A pot on the induction cooktop is catching fire.",
-        [0.23, 0.26, 0.24],  # "A fire broke out in a pot in the kitchen."
+        # video :
+        Sentence("The electrical outlet on the wall is emitting smoke",
+            0.23, 0.26, 0.24),
+        Sentence("Smoke is rising from the electrical outlet.",
+            0.23, 0.26, 0.24),
 
-        [0.23, 0.26, 0.24],  # "Two childrens are fighting.",
-        [0.23, 0.26, 0.24],  # "Two children start crying after a fight."
+        # video :
+        Sentence("A pot on the induction cooktop is catching fire.",
+            0.23, 0.26, 0.24),
+        Sentence("A fire broke out in a pot in the kitchen.",
+            0.23, 0.26, 0.24),
 
-        [0.23, 0.26, 0.24],  # "Several men are engaged in a fight.",
-        [0.23, 0.26, 0.24],  # "Several people are fighting in the street.",
+        # video :
+        Sentence("Two childrens are fighting.",
+            0.23, 0.26, 0.24),
+        Sentence("Two children start crying after a fight.",
+            0.23, 0.26, 0.24),
 
-        [0.23, 0.26, 0.24],  # "An elderly man is complaining of pain on the street."
-        [0.23, 0.26, 0.24],  # "An man is crouching on the street."
+        # video :
+        Sentence("Several men are engaged in a fight.",
+            0.23, 0.26, 0.24),
+        Sentence("Several people are fighting in the street.",
+            0.23, 0.26, 0.24),
 
-        [0.23, 0.26, 0.24],  # "Someone helps old man who is falling down."
-        [0.23, 0.26, 0.24],  # "An elderly grandfather is lying on the floor."
+        # video :
+        Sentence("An elderly man is complaining of pain on the street.",
+            0.23, 0.26, 0.24),
+        Sentence("An man is crouching on the street.",
+            0.23, 0.26, 0.24),
 
-        [0.23, 0.26, 0.24],  # "A fire has occurred in the electric iron."
-        [0.23, 0.26, 0.24],  # "The electric iron on the table is on fire."
+        # video :
+        Sentence("Someone helps old man who is falling down.",
+            0.23, 0.26, 0.24),
+        Sentence("An elderly grandfather is lying on the floor",
+            0.23, 0.26, 0.24),
 
-        [0.23, 0.26, 0.24],  # "Two men are engaging in mixed martial arts on the ring."
-    ]
+        # video :
+        Sentence("A fire has occurred in the electric iron.",
+            0.23, 0.26, 0.24),
+        Sentence("The electric iron on the table is on fire.",
+            0.23, 0.26, 0.24),
 
-    sentence_list: list = [
-        "The subway is crowded with people",
-        "People is crowded in the subway",
-
-        "Heavy objects are fallen",
-
-        "Physical confrontation occurs between two people",
-        "Violence with kicking and punching",
-
-        "Terrorism is taking place at the airport",
-        "Terrorist is shooting at people",
-
-        "The water is exploding out",
-        "The water is gushing out",
-
-        "Fire is coming out of the car",
-        "The car is exploding",
-
-        "The electrical outlet on the wall is emitting smoke",
-        "Smoke is rising from the electrical outlet.",
-
-        "A pot on the induction cooktop is catching fire.",
-        "A fire broke out in a pot in the kitchen.",
-
-        "Two childrens are fighting.",
-        "Two children start crying after a fight.",
-
-        "Several men are engaged in a fight.",
-        "Several people are fighting in the street.",
-
-        "An elderly man is complaining of pain on the street.",
-        "An man is crouching on the street.",
-
-        "Someone helps old man who is falling down.",
-        "An elderly grandfather is lying on the floor",
-
-        "A fire has occurred in the electric iron.",
-        "The electric iron on the table is on fire.",
-
-        "Two men are engaging in mixed martial arts on the ring.",
+        # video :
+        Sentence("Two men are engaging in mixed martial arts on the ring.",
+            0.23, 0.26, 0.24),
     ]

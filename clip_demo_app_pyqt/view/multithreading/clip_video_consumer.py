@@ -1,6 +1,6 @@
 import logging
 import time
-import traceback
+# import traceback
 
 import numpy as np
 import torch
@@ -11,6 +11,7 @@ from overrides import overrides
 
 from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
 from clip_demo_app_pyqt.lib.clip.dx_video_encoder import DXVideoEncoder
+from clip_demo_app_pyqt.model.sentence_model import Sentence, SentenceOutput
 from clip_demo_app_pyqt.viewmodel.clip_view_model import ClipViewModel
 from clip_demo_app_pyqt.view.multithreading.video_consumer import VideoConsumer
 
@@ -18,8 +19,8 @@ from clip_demo_app_pyqt.view.multithreading.video_consumer import VideoConsumer
 class ClipVideoConsumer(VideoConsumer):
     __dxnn_video_encoder = DXVideoEncoder(ParserUtil.get_args().video_encoder_dxnn)
 
-    __clear_text_output_signal = pyqtSignal(int)
-    __update_text_output_signal = pyqtSignal(int, str, int, float)
+    __clear_sentence_output_signal = pyqtSignal(int)
+    __update_sentence_output_signal = pyqtSignal(int, str, int, float)
 
     def __init__(self, channel_idx: int, number_of_alarms: list, origin_video_frame_updated_signal: pyqtSignal,
                  video_source_changed_signal: pyqtSignal, sentence_list_update_signal: pyqtSignal, ctx: ClipViewModel):
@@ -60,7 +61,6 @@ class ClipVideoConsumer(VideoConsumer):
 
         sentence_vector_list = self.ctx.get_sentence_vector_list()
         sentence_list = self.ctx.get_sentence_list()
-        sentence_alarm_threshold_list = self.ctx.get_sentence_alarm_threshold_list()
 
         for text_index in range(len(sentence_vector_list)):
             try:
@@ -92,18 +92,17 @@ class ClipVideoConsumer(VideoConsumer):
 
         self._update_each_fps(dxnn_fps, sol_fps)
 
-        self.__update_argmax_text(sentence_list, self.__np_array_similarity / (self.__frame_count + 1),
-                                  sentence_alarm_threshold_list)
+        self.__update_argmax_text(sentence_list, self.__np_array_similarity / (self.__frame_count + 1))
 
         if self._channel_idx == 0:
             self._update_overall_fps()
         self.__frame_count += 1
 
-    def get_update_text_output_signal(self):
-        return self.__update_text_output_signal
+    def get_update_sentence_output_signal(self):
+        return self.__update_sentence_output_signal
 
-    def get_clear_text_output_signal(self):
-        return self.__clear_text_output_signal
+    def get_clear_sentence_output_signal(self):
+        return self.__clear_sentence_output_signal
 
     @staticmethod
     def __transform(n_px):
@@ -115,36 +114,33 @@ class ClipVideoConsumer(VideoConsumer):
             Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
         ])
 
-    def __update_argmax_text(self, text_list, logit_list, alarm_list):
+    def __update_argmax_text(self, sentence_list: list[Sentence], logit_list):
         current_update_time_text = time.time()
         if current_update_time_text - self.__last_update_time_text < self.__interval_update_time_text:
             return
 
-        argmax_info_list = []
+        sentence_output_list: list[SentenceOutput] = []
         sorted_index = np.argsort(logit_list)
         indices_index = np.array(sorted(sorted_index[(-1 * self.__number_of_alarms):]))
         for t in indices_index:
             try:
-                value = logit_list[t]
-                min_value = alarm_list[t][0]
-                max_value = alarm_list[t][1]
-                alarm_threshold = alarm_list[t][2]
-                if value < min_value:
-                    ret_level = 0
-                elif value > max_value:
-                    ret_level = 100
-                else:
-                    ret_level = int((value - min_value) / (max_value - min_value) * 100)
-                if value > alarm_threshold:
-                    argmax_info_list.append({"text": text_list[t], "percent": ret_level, "score": value})
+                score = logit_list[t]
+                sentence = sentence_list[t]
+
+                if score > sentence.getScoreThreshold():
+                    sentence_output_list.append(SentenceOutput(sentence, score))
             except Exception as ex:
                 # traceback.print_exc()
                 logging.debug(ex)
                 continue
 
-        self.__clear_text_output_signal.emit(self._channel_idx)
-        for argmax_info in argmax_info_list:
-            self.__update_text_output_signal.emit(self._channel_idx, argmax_info["text"], argmax_info["percent"], argmax_info["score"])
+        self.__clear_sentence_output_signal.emit(self._channel_idx)
+        for sentence_output in sentence_output_list:
+            self.__update_sentence_output_signal.emit(
+                self._channel_idx,
+                sentence_output.getSentenceText(),
+                sentence_output.getPercentage(),
+                sentence_output.getScore())
 
         self.__last_update_time_text = current_update_time_text
 

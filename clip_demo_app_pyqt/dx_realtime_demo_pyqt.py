@@ -4,7 +4,6 @@ import sys
 from PyQt5.QtWidgets import QApplication
 
 from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
-from clip_demo_app_pyqt.data.input_data import InputData
 
 # fmt: on
 
@@ -20,7 +19,7 @@ def main():
         from clip_demo_app_pyqt.view.clip_view import ClipView
         from clip_demo_app_pyqt.viewmodel.clip_view_model import ClipViewModel
         settings_ctx.model = ClipModel(settings_ctx.base_path, settings_ctx.adjusted_video_path_lists,
-                                       settings_ctx.sentence_list, settings_ctx.sentence_alarm_threshold_list)
+                                       settings_ctx.sentence_list)
         settings_ctx.view_model = ClipViewModel(settings_ctx.model)
         settings_ctx.main_app = ClipView(settings_ctx.view_model, settings_ctx.ui_config,
                                          settings_ctx.base_path, settings_ctx.adjusted_video_path_lists)
@@ -28,9 +27,7 @@ def main():
 
     # Run Setting Window
     from clip_demo_app_pyqt.view.settings_view import SettingsView
-
-    input_data = InputData()
-    settings_window = SettingsView(args, input_data, success_cb)
+    settings_window = SettingsView(args, success_cb)
     settings_window.show()
 
     app_ret = app.exec_()

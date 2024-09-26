@@ -5,11 +5,12 @@ import qdarkstyle
 from PyQt5.QtCore import Qt, QObject
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QTextEdit, QLineEdit, \
-    QHBoxLayout, QGridLayout, QDialog, QScrollArea
+    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox
 from overrides import overrides
 from pyqttoast import ToastPreset, ToastPosition, Toast
 
 from clip_demo_app_pyqt.common.base import CombinedMeta, Base
+from clip_demo_app_pyqt.data.input_data import InputData
 from clip_demo_app_pyqt.viewmodel.clip_view_model import ClipViewModel
 from clip_demo_app_pyqt.common.config.ui_config import UIHelper, UIConfig
 from clip_demo_app_pyqt.view.multithreading.clip_video_consumer import ClipVideoConsumer
@@ -23,16 +24,50 @@ class AddSentenceDialog(QDialog):
         self.setWindowTitle("Add Sentence")
         self.setModal(True)
 
-        # QLineEdit and QTextEdit initialization (text input and display)
-        self.sentence_input_label = QLabel("[Input Terminal]", self)
+        # sentence input
+        sentence_input_label = QLabel("[Input Sentence]", self)
         self.sentence_input = QLineEdit(self)
         self.sentence_input.setMinimumWidth(parent.ui_config.sentence_input_min_width)
         self.sentence_input.setPlaceholderText("Please enter a sentence.")
 
+        score_settings_label = QLabel("[Score Settings]", self)
+
+        # score settings input
+        decimals = UIConfig.score_settings_decimals
+        single_step = UIConfig.score_settings_single_step
+
+        score_settings_box = QHBoxLayout()
+        score_min_label = QLabel("Min:", self)
+        self.score_min_input = QDoubleSpinBox(self)
+        self.score_min_input.setValue(InputData.default_sentence_score_min)
+        self.score_min_input.setDecimals(decimals)
+        self.score_min_input.setSingleStep(single_step)
+
+        score_max_label = QLabel("Max:", self)
+        self.score_max_input = QDoubleSpinBox(self)
+        self.score_max_input.setValue(InputData.default_sentence_score_max)
+        self.score_max_input.setDecimals(decimals)
+        self.score_max_input.setSingleStep(single_step)
+
+        score_threshold_label = QLabel("Threshold:", self)
+        self.score_threshold_input = QDoubleSpinBox(self)
+        self.score_threshold_input.setValue(InputData.default_sentence_score_threshold)
+        self.score_threshold_input.setDecimals(decimals)
+        self.score_threshold_input.setSingleStep(single_step)
+
+        score_settings_box.addWidget(score_min_label)
+        score_settings_box.addWidget(self.score_min_input)
+        score_settings_box.addWidget(score_max_label)
+        score_settings_box.addWidget(self.score_max_input)
+        score_settings_box.addWidget(score_threshold_label)
+        score_settings_box.addWidget(self.score_threshold_input)
+
         # Layout configuration
         terminal_box = QVBoxLayout()
-        terminal_box.addWidget(self.sentence_input_label)
+        terminal_box.addWidget(sentence_input_label)
         terminal_box.addWidget(self.sentence_input)
+        terminal_box.addWidget(score_settings_label)
+        terminal_box.addLayout(score_settings_box)
 
         # Add Cancel and Submit buttons
         button_box = QHBoxLayout()
@@ -51,8 +86,17 @@ class AddSentenceDialog(QDialog):
         # Connect sentence input enter key event
         self.sentence_input.returnPressed.connect(self.accept)  # enter key
 
-    def get_sentence(self):
+    def get_sentence_input_text(self):
         return self.sentence_input.text()
+
+    def get_score_min_input_value(self):
+        return self.score_min_input.value()
+
+    def get_score_max_input_value(self):
+        return self.score_max_input.value()
+
+    def get_score_threshold_input_value(self):
+        return self.score_threshold_input.value()
 
 
 class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
@@ -84,7 +128,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         # Widget initialization
         self.each_fps_label_list: List[QLabel] = []
         self.video_label_list: List[QLabel] = []
-        self.text_output_layout_list: List[QVBoxLayout] = []
+        self.sentence_output_layout_list: List[QVBoxLayout] = []
 
         self.sentence_list_label = QLabel("[Sentence List]")
 
@@ -106,7 +150,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.resume_button = QPushButton("Resume", self)
         self.pause_button = QPushButton("Pause", self)
 
-        # QPushButton initialization (text input and delete)
+        # QPushButton initialization (__text input and delete)
         self.add_button = QPushButton("Add", self)
         self.clear_button = QPushButton("Clear", self)
 
@@ -149,8 +193,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
             video_consumer.get_update_each_fps_signal().connect(self.update_each_fps)
             video_consumer.get_update_overall_fps_signal().connect(self.update_overall_fps)
-            video_consumer.get_update_text_output_signal().connect(self.update_text_output)
-            video_consumer.get_clear_text_output_signal().connect(self.clear_text_output)
+            video_consumer.get_update_sentence_output_signal().connect(self.update_sentence_output)
+            video_consumer.get_clear_sentence_output_signal().connect(self.clear_sentence_output)
 
             video_worker = VideoWorker(channel_idx, video_producer, video_consumer)
             self.video_worker_list.append(video_worker)
@@ -229,22 +273,22 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             self.video_label_list.append(video_label)
             video_layout.addWidget(video_label)
 
-            text_output_layout = QVBoxLayout()
-            text_output_widget = QWidget()
-            text_output_widget.setLayout(text_output_layout)
+            sentence_output_layout = QVBoxLayout()
+            sentence_output_widget = QWidget()
+            sentence_output_widget.setLayout(sentence_output_layout)
 
-            text_output_area = QScrollArea()
-            text_output_area.setContentsMargins(0, 0, 0, 0)
-            text_output_area.setWidget(text_output_widget)
-            text_output_area.setWidgetResizable(True)
-            text_output_area.setFixedHeight(self.ui_helper.large_font_line_height * self.ui_helper.ui_config.number_of_alarms + self.ui_helper.large_font_bottom_padding)
-            text_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
-            text_output_area.setAlignment(Qt.AlignCenter)
-            text_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            text_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            sentence_output_area = QScrollArea()
+            sentence_output_area.setContentsMargins(0, 0, 0, 0)
+            sentence_output_area.setWidget(sentence_output_widget)
+            sentence_output_area.setWidgetResizable(True)
+            sentence_output_area.setFixedHeight(self.ui_helper.large_font_line_height * self.ui_helper.ui_config.number_of_alarms + self.ui_helper.large_font_bottom_padding)
+            sentence_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
+            sentence_output_area.setAlignment(Qt.AlignCenter)
+            sentence_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            sentence_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-            video_layout.addWidget(text_output_area)
-            self.text_output_layout_list.append(text_output_layout)
+            video_layout.addWidget(sentence_output_area)
+            self.sentence_output_layout_list.append(sentence_output_layout)
 
             return video_layout
         else:
@@ -271,29 +315,29 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                     video_layout.addWidget(each_fps_label)
                 self.each_fps_info_list.append({"dxnn_fps": -1, "sol_fps": -1})     # for calculate overall fps
 
-                text_output_layout = QVBoxLayout()
-                text_output_layout.setSpacing(0)
-                text_output_layout.setContentsMargins(0, 0, 0, 0)
-                text_output_widget = QWidget()
-                text_output_widget.setLayout(text_output_layout)
+                sentence_output_layout = QVBoxLayout()
+                sentence_output_layout.setSpacing(0)
+                sentence_output_layout.setContentsMargins(0, 0, 0, 0)
+                sentence_output_widget = QWidget()
+                sentence_output_widget.setLayout(sentence_output_layout)
 
-                text_output_area = QScrollArea()
-                text_output_area.setContentsMargins(0, 0, 0, 0)
-                text_output_area.setWidget(text_output_widget)
-                text_output_area.setWidgetResizable(True)
-                text_output_area.setFixedHeight(
+                sentence_output_area = QScrollArea()
+                sentence_output_area.setContentsMargins(0, 0, 0, 0)
+                sentence_output_area.setWidget(sentence_output_widget)
+                sentence_output_area.setWidgetResizable(True)
+                sentence_output_area.setFixedHeight(
                     self.ui_helper.small_font_line_height * self.ui_helper.ui_config.number_of_alarms + self.ui_helper.small_font_bottom_padding)
-                text_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
-                text_output_area.setAlignment(Qt.AlignCenter)
-                text_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                text_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                sentence_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
+                sentence_output_area.setAlignment(Qt.AlignCenter)
+                sentence_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                sentence_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
                 video_layout.addWidget(video_label)
-                video_layout.addWidget(text_output_area)
+                video_layout.addWidget(sentence_output_area)
 
                 video_grid_layout.addLayout(video_layout, i // self.ui_helper.grid_cols, i % self.ui_helper.grid_cols)
 
-                self.text_output_layout_list.append(text_output_layout)
+                self.sentence_output_layout_list.append(sentence_output_layout)
                 self.video_label_list.append(video_label)
 
             return video_grid_layout
@@ -326,28 +370,28 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def update_scaled_video_frame(self, channel_idx: int, qt_img):
         self.video_label_list[channel_idx].setPixmap(QPixmap.fromImage(qt_img))
 
-    def clear_text_output(self, idx: int):
-        text_output_layout = self.text_output_layout_list[idx]
-        while text_output_layout.count():
-            item = text_output_layout.takeAt(0)
+    def clear_sentence_output(self, idx: int):
+        sentence_output_layout = self.sentence_output_layout_list[idx]
+        while sentence_output_layout.count():
+            item = sentence_output_layout.takeAt(0)
             if item.widget() is not None:
                 item.widget().deleteLater()
             elif item.layout() is not None:
                 self.clear_layout(item.layout())
 
-    def update_text_output(self, idx: int, text: str, progress: int, score: float):
+    def update_sentence_output(self, idx: int, text: str, progress: int, score: float):
         prefix_str = ""
         if self.ui_config.show_percent:
             prefix_str += "[" + str(progress) + "%]"
 
         if self.ui_config.show_score:
-            prefix_str +=  "[" + str(round(score, 4)) + "]"
+            prefix_str +=  "[" + "{:.{}f}".format(score, self.ui_config.score_settings_decimals) + "]"
 
-        # text_output box layout
-        # [prefix]|[text]
-        text_output_box = QHBoxLayout()
-        text_output_box.setSpacing(0)
-        text_output_box.setContentsMargins(0, 0, 0, 0)
+        # sentence_output box layout
+        # [prefix]|[__text]
+        sentence_output_box = QHBoxLayout()
+        sentence_output_box.setSpacing(0)
+        sentence_output_box.setContentsMargins(0, 0, 0, 0)
 
         if self.ui_helper.ui_config.num_channels > 1:
             font = self.ui_helper.small_font
@@ -366,18 +410,18 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             prefix_label.setFixedWidth(prefix_text_fixed_width)
             # prefix_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
             prefix_label.setContentsMargins(0, 0, 0, 0)
-            text_output_box.addWidget(prefix_label)
+            sentence_output_box.addWidget(prefix_label)
 
-        # text_output
-        text_output_label = QLabel(text, self)
-        text_output_label.setFont(font)
-        text_output_label.setFixedHeight(line_height)
-        # text_output_label.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
-        # text_output_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
-        text_output_label.setContentsMargins(0, 0, 0, 0)
-        text_output_box.addWidget(text_output_label)
+        # sentence_output
+        sentence_output_label = QLabel(text, self)
+        sentence_output_label.setFont(font)
+        sentence_output_label.setFixedHeight(line_height)
+        # sentence_output_label.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
+        # sentence_output_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
+        sentence_output_label.setContentsMargins(0, 0, 0, 0)
+        sentence_output_box.addWidget(sentence_output_label)
 
-        self.text_output_layout_list[idx].addLayout(text_output_box)
+        self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
 
 
     def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING, position=ToastPosition.CENTER):
@@ -392,8 +436,11 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def open_add_sentence_dialog(self):
         dialog = AddSentenceDialog(self)
         if dialog.exec_() == QDialog.Accepted:
-            sentence = dialog.get_sentence()
-            self.add_sentence(sentence)
+            sentence = dialog.get_sentence_input_text()
+            score_min = dialog.get_score_min_input_value()
+            score_max = dialog.get_score_max_input_value()
+            score_threshold = dialog.get_score_threshold_input_value()
+            self.add_sentence(sentence, score_min, score_max, score_threshold)
 
     def refresh_sentence_list(self):
         while self.sentence_list_layout.count():
@@ -415,7 +462,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             del_button.clicked.connect(lambda _, i=idx: self.delete_sentence(i))
             sentence_box.addWidget(del_button)
 
-            sentence_label = QLabel(sentence, self)
+            sentence_label = QLabel(sentence.getText(), self)
             sentence_box.addWidget(sentence_label)
 
             self.sentence_list_layout.addLayout(sentence_box)
@@ -428,12 +475,12 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             elif item.layout() is not None:
                 self.clear_layout(item.layout())
 
-    def add_sentence(self, sentence):
+    def add_sentence(self, sentence, score_min, score_max, score_threshold):
         if len(sentence) == 0:
             self.show_toast("Please enter a sentence and press the Add button.")
             return
 
-        self.__view_model.push_sentence(sentence)
+        self.__view_model.push_sentence(sentence, score_min, score_max,score_threshold)
 
     def delete_sentence(self, index):
         self.__view_model.pop_sentence(index)
