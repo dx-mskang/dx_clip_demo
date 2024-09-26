@@ -189,6 +189,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             video_consumer = ClipVideoConsumer(channel_idx, self.ui_config.number_of_alarms,
                                                origin_video_frame_updated_signal, video_source_changed_signal,
                                                sentence_list_updated_signal,
+                                               self.ui_config.num_of_inference_per_sec,
+                                               self.ui_config.maximum_num_of_frame_collection,
                                                self.__view_model)
 
             video_consumer.get_update_each_fps_signal().connect(self.update_each_fps)
@@ -395,30 +397,28 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         if self.ui_helper.ui_config.num_channels > 1:
             font = self.ui_helper.small_font
-            line_height = self.ui_helper.small_font_line_height
             prefix_text_fixed_width = self.ui_helper.small_font_prefix_text_fixed_width
         else:
             font = self.ui_helper.large_font
-            line_height = self.ui_helper.large_font_line_height
             prefix_text_fixed_width = self.ui_helper.large_font_prefix_text_fixed_width
 
         if prefix_str != "":
             # prefix
             prefix_label = QLabel(prefix_str, self)
             prefix_label.setFont(font)
-            prefix_label.setFixedHeight(line_height)
             prefix_label.setFixedWidth(prefix_text_fixed_width)
             # prefix_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
             prefix_label.setContentsMargins(0, 0, 0, 0)
+            prefix_label.setAlignment(Qt.AlignTop)
             sentence_output_box.addWidget(prefix_label)
 
         # sentence_output
         sentence_output_label = QLabel(text, self)
         sentence_output_label.setFont(font)
-        sentence_output_label.setFixedHeight(line_height)
         # sentence_output_label.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
         # sentence_output_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
         sentence_output_label.setContentsMargins(0, 0, 0, 0)
+        sentence_output_label.setAlignment(Qt.AlignTop)
         sentence_output_box.addWidget(sentence_output_label)
 
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)

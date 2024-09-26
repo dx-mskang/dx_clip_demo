@@ -21,6 +21,7 @@ class VideoConsumer(QThread):
         self.__pause_thread = False
         self.__max_queue_size = UIConfig.video_consumer_queue_size
         self.__queue: Queue[np.ndarray] = Queue(maxsize=self.__max_queue_size)
+        self.__video_fps = 30   # default video fps
 
         self._channel_idx = channel_idx
 
@@ -46,7 +47,7 @@ class VideoConsumer(QThread):
                     time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
                     continue
                 else:
-                    self.process(frame)
+                    self.process(frame, self.__video_fps)
         except Exception as ex:
             # traceback.print_exc()
             logging.error(f"Error in VideoConsumer run method: {ex}")
@@ -86,7 +87,7 @@ class VideoConsumer(QThread):
 
         self.__last_update_time_each_fps = current_update_time_fps
 
-    def __push_origin_video_frame(self, channel_idx: int, origin_video_frame: np.ndarray):
+    def __push_origin_video_frame(self, channel_idx: int, origin_video_frame: np.ndarray, video_fps: int):
         if self._channel_idx != channel_idx:
             raise RuntimeError("channel index is not correct")
 
@@ -96,6 +97,9 @@ class VideoConsumer(QThread):
 
         # Add the new image to the queue
         self.__queue.put(origin_video_frame)
+
+        # update video_fps
+        self.__video_fps = video_fps
 
     def __video_source_changed(self, channel_idx: int):
         if self._channel_idx != channel_idx:
@@ -109,7 +113,7 @@ class VideoConsumer(QThread):
         return None
 
     @abstractmethod
-    def process(self, frame):
+    def process(self, frame, fps):
         pass
 
     @abstractmethod

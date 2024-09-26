@@ -17,7 +17,11 @@ class UIConfig:
     sentence_input_min_width = 400
     sentence_list_scroll_area_min_height = 150
     sentence_list_scroll_area_fixed_width = 450
+
+    # video processing settings
     video_consumer_queue_size = 1
+    num_of_inference_per_sec = 10
+    maximum_num_of_frame_collection = 5
 
     # Add Sentence Dialog
     score_settings_single_step = 0.005

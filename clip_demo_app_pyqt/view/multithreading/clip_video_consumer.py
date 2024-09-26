@@ -10,6 +10,7 @@ from PyQt5.QtCore import pyqtSignal
 from overrides import overrides
 
 from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
+from clip_demo_app_pyqt.common.util.peekable_queue import PeekableQueue
 from clip_demo_app_pyqt.lib.clip.dx_video_encoder import DXVideoEncoder
 from clip_demo_app_pyqt.model.sentence_model import Sentence, SentenceOutput
 from clip_demo_app_pyqt.viewmodel.clip_view_model import ClipViewModel
@@ -22,14 +23,20 @@ class ClipVideoConsumer(VideoConsumer):
     __clear_sentence_output_signal = pyqtSignal(int)
     __update_sentence_output_signal = pyqtSignal(int, str, int, float)
 
-    def __init__(self, channel_idx: int, number_of_alarms: list, origin_video_frame_updated_signal: pyqtSignal,
-                 video_source_changed_signal: pyqtSignal, sentence_list_update_signal: pyqtSignal, ctx: ClipViewModel):
+    def __init__(self, channel_idx: int, number_of_alarms: list,
+                 origin_video_frame_updated_signal: pyqtSignal, video_source_changed_signal: pyqtSignal,
+                 sentence_list_update_signal: pyqtSignal, num_of_inference_per_sec: int,
+                 maximum_num_of_frame_collection: int, ctx: ClipViewModel):
         super().__init__(channel_idx, origin_video_frame_updated_signal, video_source_changed_signal)
         self.ctx = ctx
-
         self.__number_of_alarms = number_of_alarms
-        self.__np_array_similarity = None
+        self.__num_of_inference_per_sec = num_of_inference_per_sec  # Number of frames per second for inference (e.g., 10)
+        self.__max_np_array_similarity_queue = maximum_num_of_frame_collection  # Maximum number of frame collection for inference (e.g., 5)
+
+        self.__prev_np_array_similarity = None
+        self.__np_array_similarity_queue = None
         self.__init_np_array_similarity()
+
         self.__last_update_time_text = 0  # Initialize the last update time
         self.__interval_update_time_text = 1.0  # Set update interval to 1 seconds (adjust as needed)
         self.__frame_count = 0
@@ -42,10 +49,18 @@ class ClipVideoConsumer(VideoConsumer):
         sentence_list_update_signal.connect(self.__init_np_array_similarity)
 
     @overrides()
-    def process(self, frame):
+    def process(self, frame, fps):
         if frame is None:
             logging.debug("QImage is None on VideoConsumer" + str(frame))
             return
+
+        # Increment the frame counter
+        self.__frame_count += 1
+
+        interval = max(1, int(fps / self.__num_of_inference_per_sec))  # Calculate interval (must be at least 1)
+        # Perform inference only on certain frames based on the interval
+        if self.__frame_count % interval != 0:
+            return  # Skip frames that don't match the interval
 
         # for prevent UI freeze
         time.sleep(0.3)
@@ -60,22 +75,24 @@ class ClipVideoConsumer(VideoConsumer):
         dxnn_e = time.perf_counter_ns()
 
         sentence_vector_list = self.ctx.get_sentence_vector_list()
+        sentence_vector_count = len(sentence_vector_list)
         sentence_list = self.ctx.get_sentence_list()
+        sentence_count = len(sentence_list)
 
-        for text_index in range(len(sentence_vector_list)):
+        for text_index in range(sentence_vector_count):
             try:
-                ret = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
+                similarity = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
             except Exception as ex:
-                # traceback.print_exc()
                 logging.debug(ex)
                 return
-            similarity_list.append(ret)
+            similarity_list.append(similarity)
 
         try:
             if len(similarity_list) > 0:
-                np_array_similarity = np.stack(similarity_list).reshape(len(sentence_vector_list))
-                if np_array_similarity.shape == self.__np_array_similarity.shape:
-                    self.__np_array_similarity += np_array_similarity
+                np_array_similarity = np.stack(similarity_list).reshape(sentence_vector_count)
+                if np_array_similarity.shape == self.__prev_np_array_similarity.shape:
+                    self.__prev_np_array_similarity = np_array_similarity
+                    self.__push_np_array_similarity_queue(np_array_similarity)
                 else:
                     return
 
@@ -92,17 +109,36 @@ class ClipVideoConsumer(VideoConsumer):
 
         self._update_each_fps(dxnn_fps, sol_fps)
 
-        self.__update_argmax_text(sentence_list, self.__np_array_similarity / (self.__frame_count + 1))
+        # calculate mean_np_array_similarity
+        sum_np_array_similarity = np.zeros(sentence_count)
+        np_array_similarity_list: list = self.__np_array_similarity_queue.peek()
+        for np_array_similarity in np_array_similarity_list:
+            sum_np_array_similarity += np_array_similarity
+        mean_np_array_similarity = sum_np_array_similarity / len(np_array_similarity_list)
+
+        self.__update_argmax_text(sentence_list, mean_np_array_similarity)
 
         if self._channel_idx == 0:
             self._update_overall_fps()
-        self.__frame_count += 1
 
     def get_update_sentence_output_signal(self):
         return self.__update_sentence_output_signal
 
     def get_clear_sentence_output_signal(self):
         return self.__clear_sentence_output_signal
+
+    def __push_np_array_similarity_queue(self, np_array_similarity):
+        # If the queue is full, remove the oldest image
+        if self.__np_array_similarity_queue.full():
+            self.__np_array_similarity_queue.get()  # Remove the oldest image
+
+        # Add the new image to the queue
+        self.__np_array_similarity_queue.put(np_array_similarity)
+
+    def __pop_np_array_similarity_queue(self):
+        if not self.__np_array_similarity_queue.empty():
+            return self.__np_array_similarity_queue.get()
+        return None
 
     @staticmethod
     def __transform(n_px):
@@ -185,4 +221,8 @@ class ClipVideoConsumer(VideoConsumer):
         return retrieve_logits
 
     def __init_np_array_similarity(self):
-        self.__np_array_similarity = np.zeros((len(self.ctx.get_sentence_list())))
+        self.__prev_np_array_similarity = np.zeros(len(self.ctx.get_sentence_list()))
+
+        if hasattr(self, '__np_array_similarity_queue'):
+            del self.__np_array_similarity_queue
+        self.__np_array_similarity_queue = PeekableQueue(self.__max_np_array_similarity_queue)

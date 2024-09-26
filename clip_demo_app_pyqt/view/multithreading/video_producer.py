@@ -13,7 +13,7 @@ from PyQt5.QtGui import QImage
 
 class VideoProducer(QThread):
     __scaled_video_frame_updated_signal = pyqtSignal(int, QImage)
-    __origin_video_frame_updated_signal = pyqtSignal(int, np.ndarray)
+    __origin_video_frame_updated_signal = pyqtSignal(int, np.ndarray, int)
     __video_source_changed_signal = pyqtSignal(int)
 
     def __init__(self, channel_idx: int, base_path: str, video_path_list: List[str], video_size: Tuple,
@@ -41,9 +41,16 @@ class VideoProducer(QThread):
             self.__video_path_current = os.path.join(self.__base_path, self.__video_path_list[self.__current_index] + ".mp4")
 
         self.__video_size = video_size
-        self.__video_fps = 30
 
         self.__video_capture = cv2.VideoCapture(self.__video_path_current)
+
+        if not self.__video_capture:
+            logging.error("Error: Could not open video.")
+            self.__video_fps = 30       # default video fps value
+        else:
+            self.__video_fps = int(round(self.__video_capture.get(cv2.CAP_PROP_FPS), 0))
+            logging.debug("channel_idx:" + str(self._channel_idx) + f"FPS: {self.__video_fps}")
+
         self.__current_video_frame = np.zeros((self.__video_size[1], self.__video_size[0], 3), dtype=np.uint8)
 
     def run(self):
@@ -70,7 +77,7 @@ class VideoProducer(QThread):
             self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
 
             # Original QImage를 video Consumer 스레드로 전송
-            self.__origin_video_frame_updated_signal.emit(self._channel_idx, copy.deepcopy(self.__current_video_frame))
+            self.__origin_video_frame_updated_signal.emit(self._channel_idx, self.__current_video_frame, self.__video_fps)
 
         with self.__change_video_lock:
             self.__video_capture.release()
