@@ -24,14 +24,14 @@ class ClipVideoConsumer(VideoConsumer):
     __update_sentence_output_signal = pyqtSignal(int, str, int, float)
 
     def __init__(self, channel_idx: int, number_of_alarms: list,
-                 origin_video_frame_updated_signal: pyqtSignal, video_source_changed_signal: pyqtSignal,
+                 video_source_changed_signal: pyqtSignal,
                  sentence_list_update_signal: pyqtSignal, num_of_inference_per_sec: int,
-                 maximum_num_of_frame_collection: int, ctx: ClipViewModel):
-        super().__init__(channel_idx, origin_video_frame_updated_signal, video_source_changed_signal)
+                 max_np_array_similarity_queue: int, consumer_blocking_mode: bool, ctx: ClipViewModel):
+        super().__init__(channel_idx, video_source_changed_signal, consumer_blocking_mode)
         self.ctx = ctx
         self.__number_of_alarms = number_of_alarms
         self.__num_of_inference_per_sec = num_of_inference_per_sec  # Number of frames per second for inference (e.g., 10)
-        self.__max_np_array_similarity_queue = maximum_num_of_frame_collection  # Maximum number of frame collection for inference (e.g., 5)
+        self.__max_np_array_similarity_queue = max_np_array_similarity_queue  # Maximum number of frame collection for inference (e.g., 5)
 
         self.__prev_np_array_similarity = None
         self.__np_array_similarity_queue = None
@@ -49,7 +49,10 @@ class ClipVideoConsumer(VideoConsumer):
         sentence_list_update_signal.connect(self.__init_np_array_similarity)
 
     @overrides()
-    def process(self, frame, fps):
+    def _process_impl(self, channel_idx, frame, fps):
+        if self._channel_idx != channel_idx:
+            raise RuntimeError("channel index is not correct")
+
         if frame is None:
             logging.debug("QImage is None on VideoConsumer" + str(frame))
             return
@@ -61,6 +64,8 @@ class ClipVideoConsumer(VideoConsumer):
         # Perform inference only on certain frames based on the interval
         if self.__frame_count % interval != 0:
             return  # Skip frames that don't match the interval
+        else:
+            self.__frame_count = 0
 
         # for prevent UI freeze
         time.sleep(0.3)
@@ -107,7 +112,7 @@ class ClipVideoConsumer(VideoConsumer):
         self.__dxnn_fps = dxnn_fps
         self.__sol_fps = sol_fps
 
-        self._update_each_fps(dxnn_fps, sol_fps)
+        self._update_each_fps(channel_idx, dxnn_fps, sol_fps)
 
         # calculate mean_np_array_similarity
         sum_np_array_similarity = np.zeros(sentence_count)
@@ -116,10 +121,10 @@ class ClipVideoConsumer(VideoConsumer):
             sum_np_array_similarity += np_array_similarity
         mean_np_array_similarity = sum_np_array_similarity / len(np_array_similarity_list)
 
-        self.__update_argmax_text(sentence_list, mean_np_array_similarity)
+        self.__update_argmax_text(sentence_list, mean_np_array_similarity, channel_idx)
 
-        if self._channel_idx == 0:
-            self._update_overall_fps()
+        if channel_idx == 0:
+            self._update_overall_fps(channel_idx)
 
     def get_update_sentence_output_signal(self):
         return self.__update_sentence_output_signal
@@ -150,7 +155,7 @@ class ClipVideoConsumer(VideoConsumer):
             Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
         ])
 
-    def __update_argmax_text(self, sentence_list: list[Sentence], logit_list):
+    def __update_argmax_text(self, sentence_list: list[Sentence], logit_list, channel_idx):
         current_update_time_text = time.time()
         if current_update_time_text - self.__last_update_time_text < self.__interval_update_time_text:
             return
@@ -170,10 +175,10 @@ class ClipVideoConsumer(VideoConsumer):
                 logging.debug(ex)
                 continue
 
-        self.__clear_sentence_output_signal.emit(self._channel_idx)
+        self.__clear_sentence_output_signal.emit(channel_idx)
         for sentence_output in sentence_output_list:
             self.__update_sentence_output_signal.emit(
-                self._channel_idx,
+                channel_idx,
                 sentence_output.getSentenceText(),
                 sentence_output.getPercentage(),
                 sentence_output.getScore())
@@ -181,7 +186,10 @@ class ClipVideoConsumer(VideoConsumer):
         self.__last_update_time_text = current_update_time_text
 
     @overrides()
-    def _cleanup(self):
+    def _cleanup(self, channel_idx):
+        if self._channel_idx != channel_idx:
+            raise RuntimeError("channel index is not correct")
+
         self.__init_np_array_similarity()
         self.__last_update_time_text = 0  # Initialize the last update time
         self.__interval_update_time_text = 1  # Set update interval to 1 seconds (adjust as needed)

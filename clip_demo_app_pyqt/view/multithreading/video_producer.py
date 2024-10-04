@@ -1,4 +1,3 @@
-import copy
 import logging
 import os
 import threading
@@ -7,24 +6,26 @@ from typing import List, Tuple
 
 import cv2
 import numpy as np
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QImage
 
 
-class VideoProducer(QThread):
+class VideoProducer(QObject):
     __scaled_video_frame_updated_signal = pyqtSignal(int, QImage)
     __origin_video_frame_updated_signal = pyqtSignal(int, np.ndarray, int)
     __video_source_changed_signal = pyqtSignal(int)
 
     def __init__(self, channel_idx: int, base_path: str, video_path_list: List[str], video_size: Tuple,
-                 sentence_list_updated_signal: pyqtSignal):
+                 blocking_mode: int, video_frame_skip_interval: int, sentence_list_updated_signal: pyqtSignal):
         super().__init__()
         self.__running = True
         self.__pause_thread = False
-        self.__blocking_mode = True
-        # self.__blocking_mode = False
+        self.__blocking_mode = blocking_mode
 
         self.__change_video_lock = threading.Lock()
+
+        self.__frame_count = 0
+        self.__video_frame_skip_interval = video_frame_skip_interval
 
         sentence_list_updated_signal.connect(self.__change_video)
 
@@ -53,34 +54,36 @@ class VideoProducer(QThread):
 
         self.__current_video_frame = np.zeros((self.__video_size[1], self.__video_size[0], 3), dtype=np.uint8)
 
-    def run(self):
+    def capture_frame(self):
         logging.debug("VideoProducer thread started, channel_id: " + str(self._channel_idx))
 
+        if self.__running  == False or self.__pause_thread:
+            time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
+            return None
+
+        if self.__blocking_mode:
+            time.sleep(1 / self.__video_fps)
+
+        self.__frame_count += 1
+        if self.__video_frame_skip_interval > 0:
+            if self.__frame_count % self.__video_frame_skip_interval == 0:
+                self.__frame_count = 0
+                return None
+
         self.__update_current_video_frame()
-        while self.__running:
-            if self.__pause_thread:
-                continue
 
-            if self.__blocking_mode:
-                time.sleep(1 / self.__video_fps)
+        # Frame processing and signal transmission
+        rgb_image = cv2.cvtColor(self.__current_video_frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        scaled_image = convert_to_qt_format.scaled(self.__video_size[0], self.__video_size[1], Qt.KeepAspectRatio)
 
-            self.__update_current_video_frame()
+        # Send the scaled QImage to the main thread
+        self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
 
-            # 프레임 처리 및 시그널 전송
-            rgb_image = cv2.cvtColor(self.__current_video_frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_image.shape
-            bytes_per_line = ch * w
-            convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            scaled_image = convert_to_qt_format.scaled(self.__video_size[0], self.__video_size[1], Qt.KeepAspectRatio)
-
-            # Scaled QImage를 메인 스레드로 전송
-            self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
-
-            # Original QImage를 video Consumer 스레드로 전송
-            self.__origin_video_frame_updated_signal.emit(self._channel_idx, self.__current_video_frame, self.__video_fps)
-
-        with self.__change_video_lock:
-            self.__video_capture.release()
+        # Send the original QImage to the video consumer thread
+        return [self._channel_idx, self.__current_video_frame, self.__video_fps]
 
     def __update_current_video_frame(self):
         with self.__change_video_lock:
@@ -114,12 +117,13 @@ class VideoProducer(QThread):
             else:
                 logging.debug("fail to read video frame : " + str(ret))
 
-    def get_current_video_frame(self):
-        return self.__current_video_frame
-
     def stop(self):
         self.__running = False
-        self.wait()
+        self.__pause_thread = False  # Ensure thread is not stuck in pause
+        logging.debug(f"VideoProducer {self._channel_idx} stopping...")
+        with self.__change_video_lock:
+            if self.__video_capture.isOpened():
+                self.__video_capture.release()
 
     def resume(self):
         self.__pause_thread = False
@@ -128,5 +132,4 @@ class VideoProducer(QThread):
         self.__pause_thread = True
 
     def get_video_frame_updated_signal(self) -> [pyqtSignal]:
-        return [self.__scaled_video_frame_updated_signal, self.__origin_video_frame_updated_signal,
-                self.__video_source_changed_signal]
+        return [self.__scaled_video_frame_updated_signal, self.__video_source_changed_signal]

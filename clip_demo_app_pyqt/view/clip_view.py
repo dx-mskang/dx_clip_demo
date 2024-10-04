@@ -1,10 +1,13 @@
+import logging
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 import qdarkstyle
 from PyQt5.QtCore import Qt, QObject
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QTextEdit, QLineEdit, \
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
     QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox
 from overrides import overrides
 from pyqttoast import ToastPreset, ToastPosition, Toast
@@ -163,15 +166,24 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         # Connect sentence input updated event
         self.__view_model.get_sentence_list_updated_signal().connect(self.refresh_sentence_list)
 
-        self.layout_setup()
+        self.__layout_setup()
 
-        self.video_worker_list: List[VideoWorker] = []
-        self.video_worker_setup()
+        # Producer & Consumer config
+        self.__producer_futures = []
+        self.__consumer_futures = []
+        self.__producer_thread_pool_executor = ThreadPoolExecutor(max_workers=self.ui_config.max_producer_worker)
+        self.__consumer_thread_pool_executor = ThreadPoolExecutor(max_workers=self.ui_config.max_consumer_worker)
+
+        self.__video_worker_list: List[VideoWorker] = []
+        self.__running_video_worker = False
+        self.__pause_video_worker = False
+        self.__setup_video_worker_list()
 
         self.start()
         self.refresh_sentence_list()
 
-    def video_worker_setup(self):
+
+    def __setup_video_worker_list(self):
         for channel_idx in range(self.ui_config.num_channels):
             sentence_list_updated_signal = self.__view_model.get_sentence_list_updated_signal()
             video_producer = VideoProducer(
@@ -179,18 +191,20 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 self.base_path,
                 self.adjusted_video_path_lists[channel_idx],
                 self.ui_helper.video_size,
+                self.ui_config.producer_blocking_mode,
+                self.ui_config.producer_video_frame_skip_interval,
                 sentence_list_updated_signal,
             )
 
-            [scaled_video_frame_updated_signal, origin_video_frame_updated_signal,
-             video_source_changed_signal] = video_producer.get_video_frame_updated_signal()
+            [scaled_video_frame_updated_signal, video_source_changed_signal] = video_producer.get_video_frame_updated_signal()
             scaled_video_frame_updated_signal.connect(self.update_scaled_video_frame)
 
             video_consumer = ClipVideoConsumer(channel_idx, self.ui_config.number_of_alarms,
-                                               origin_video_frame_updated_signal, video_source_changed_signal,
+                                               video_source_changed_signal,
                                                sentence_list_updated_signal,
-                                               self.ui_config.num_of_inference_per_sec,
-                                               self.ui_config.maximum_num_of_frame_collection,
+                                               self.ui_config.consumer_num_of_inference_per_sec,
+                                               self.ui_config.consumer_max_np_array_similarity_queue,
+                                               self.ui_config.consumer_blocking_mode,
                                                self.__view_model)
 
             video_consumer.get_update_each_fps_signal().connect(self.update_each_fps)
@@ -199,10 +213,10 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             video_consumer.get_clear_sentence_output_signal().connect(self.clear_sentence_output)
 
             video_worker = VideoWorker(channel_idx, video_producer, video_consumer)
-            self.video_worker_list.append(video_worker)
+            self.__video_worker_list.append(video_worker)
 
 
-    def layout_setup(self):
+    def __layout_setup(self):
         video_layout = QVBoxLayout()
         video_box = self.generate_video_box()
         video_layout.addLayout(video_box)
@@ -344,26 +358,113 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
             return video_grid_layout
 
+    def worker_impl(self, channel_idx: int, worker_type: str, payload):
+        video_worker = self.__video_worker_list[channel_idx]
+        if worker_type == 'producer':
+            payload = video_worker.get_video_producer().capture_frame()
+            if payload is None:
+                time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
+
+            return payload
+        elif worker_type == 'consumer':
+            if payload is None:
+                time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
+                return channel_idx
+
+            [channel_idx, frame, fps] = payload
+            video_worker.get_video_consumer().process(channel_idx, frame, fps)
+            return channel_idx
+        else:
+            raise RuntimeError('invalid type in worker_impl()')
+
     def start(self):
-        for video_worker in self.video_worker_list:
-            video_worker.get_video_producer().start()
-            video_worker.get_video_consumer().start()
+        self.__running_video_worker = True
+        # start producer
+        timer = threading.Timer(0.001, self.start_producer_worker)  # 스레드 분리 및 재귀 반복
+        timer.start()
+
+        # start consumer
+        timer = threading.Timer(0.001, self.start_consumer_worker)  # 스레드 분리 및 재귀 반복
+        timer.start()
 
         self.resume_button.hide()
+
+    def start_producer_worker(self, worker_type='producer'):
+
+        if self.__running_video_worker:
+            if self.__pause_video_worker:
+                timer = threading.Timer(0.1, self.start_producer_worker)  # 스레드 분리 및 재귀 반복
+                timer.start()
+                return
+
+            video_channels = list(range(self.ui_config.num_channels))
+
+            for channel_idx in video_channels:
+                future = self.__producer_thread_pool_executor.submit(self.worker_impl, channel_idx, worker_type, None)
+                self.__producer_futures.append(future)
+
+            for future in as_completed(self.__producer_futures):
+                try:
+                    payload = future.result()
+                    if payload is None:
+                        break
+
+                    logging.debug(payload)
+                    [channel_idx, _, _] = payload
+                    self.__video_worker_list[channel_idx].push_queue(payload)
+                except Exception as e:
+                    logging.error(f"Error processing video: {e}")
+
+            self.__producer_futures.clear()
+
+            timer = threading.Timer(0.001, self.start_producer_worker)
+            timer.start()
+
+
+    def start_consumer_worker(self, worker_type='consumer'):
+        if self.__running_video_worker:
+            if self.__pause_video_worker:
+                timer = threading.Timer(0.1, self.start_consumer_worker)
+                timer.start()
+                return
+
+            # if self.__consumer_queue.empty():
+            for video_worker in self.__video_worker_list:
+                payload = video_worker.pop_queue()
+                if payload is not None:
+                    [channel_idx, _, _] = payload
+                    future = self.__consumer_thread_pool_executor.submit(self.worker_impl, channel_idx, worker_type, payload)
+                    self.__consumer_futures.append(future)
+
+            for future in as_completed(self.__consumer_futures):
+                try:
+                    channel_idx = future.result()
+                    logging.debug("consumer worker task done, channel_idx: ", channel_idx)
+
+                except Exception as e:
+                    logging.error(f"Error processing video: {e}")
+
+            # print("self.__consumer_futures clear() : ", len(self.__consumer_futures))
+            self.__consumer_futures.clear()
+
+            timer = threading.Timer(0.001, self.start_consumer_worker)    # 스레드 분리 및 재귀 반복
+            timer.start()
 
     def resume(self):
+        self.__pause_video_worker = False
         self.resume_button.hide()
 
-        for video_worker in self.video_worker_list:
+        for video_worker in self.__video_worker_list:
             video_worker.get_video_producer().resume()
             video_worker.get_video_consumer().resume()
 
         self.pause_button.show()
 
     def pause(self):
+        self.__pause_video_worker = True
         self.pause_button.hide()
 
-        for video_worker in self.video_worker_list:
+        for video_worker in self.__video_worker_list:
             video_worker.get_video_producer().pause()
             video_worker.get_video_consumer().pause()
 
@@ -503,19 +604,33 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 self.overall_fps_label.setText(
                     f" NPU FPS: {overall_dxnn_fps:.2f}, Render FPS: {overall_sol_fps:.2f} ")
 
-    def update_each_fps(self, thread_idx, dxnn_fps, sol_fps):
+    def update_each_fps(self, channel_idx, dxnn_fps, sol_fps):
         with self.__fps_lock:
             if self.ui_helper.ui_config.show_each_fps_label:
-                self.each_fps_label_list[thread_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, Render FPS: {sol_fps:.2f} ")
+                self.each_fps_label_list[channel_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, Render FPS: {sol_fps:.2f} ")
 
-            self.each_fps_info_list[thread_idx]["dxnn_fps"] = dxnn_fps
-            self.each_fps_info_list[thread_idx]["sol_fps"] = sol_fps
+            self.each_fps_info_list[channel_idx]["dxnn_fps"] = dxnn_fps
+            self.each_fps_info_list[channel_idx]["sol_fps"] = sol_fps
 
     @overrides
     def closeEvent(self, event):
-        for video_worker in self.video_worker_list:
+        self.__running_video_worker = False
+
+        for video_worker in self.__video_worker_list:
             video_worker.get_video_producer().stop()
             video_worker.get_video_consumer().stop()
+
+        # self.__thread_pool_executor.shutdown(wait=True)
+        self.__producer_thread_pool_executor.shutdown(wait=True)
+        self.__consumer_thread_pool_executor.shutdown(wait=True)
+
+        for future in self.__producer_futures:
+            if not future.done():
+                future.cancel()
+
+        for future in self.__consumer_futures:
+            if not future.done():
+                future.cancel()
 
         super().closeEvent(event)
 

@@ -20,6 +20,7 @@ class SettingsView(QMainWindow):
         self.number_of_channels = args.number_of_channels
         self.terminal_mode = args.terminal_mode
         self.camera_mode = args.camera_mode
+        self.blocking_mode = args.blocking_mode
 
         # input data setting
         from clip_demo_app_pyqt.data.input_data import InputData
@@ -76,6 +77,11 @@ class SettingsView(QMainWindow):
         self.camera_mode_checkbox.setChecked(self.camera_mode)
         layout.addWidget(self.camera_mode_checkbox)
 
+        # Blocking Mode checkbox
+        self.blocking_mode_checkbox = QCheckBox("Blocking Mode", self)
+        self.blocking_mode_checkbox.setChecked(self.blocking_mode)
+        layout.addWidget(self.blocking_mode_checkbox)
+
         # Fullscreen Mode checkbox
         self.fullscreen_mode_checkbox = QCheckBox("Fullscreen Mode", self)
         self.fullscreen_mode_checkbox.setChecked(self.ui_config.fullscreen_mode)
@@ -108,6 +114,7 @@ class SettingsView(QMainWindow):
         self.ui_config.num_channels = self.number_of_channels_input.value()
         self.ui_config.terminal_mode = self.terminal_mode_checkbox.isChecked()
         self.ui_config.camera_mode = self.camera_mode_checkbox.isChecked()
+        self.ui_config.producer_blocking_mode = self.blocking_mode_checkbox.isChecked()
 
         # add config (hard-coded)
         self.ui_config.show_percent = self.show_percent_checkbox.isChecked()

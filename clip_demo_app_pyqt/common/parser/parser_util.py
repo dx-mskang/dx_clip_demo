@@ -19,6 +19,7 @@ class ParserUtil:
         parser.add_argument("--number_of_channels", type=int, default=16, help="Number of input video channels")
         parser.add_argument("--terminal_mode", type=int, default=0, help="Terminal Mode Setting (off: 0, on: 1)")
         parser.add_argument("--camera_mode", type=int, default=0, help="Camera Mode Setting (off: 0, on: 1)")
+        parser.add_argument("--blocking_mode", type=int, default=0, help="Blocking Mode Setting (off: 0, on: 1)")
 
         # Model Path Arguments
         parser.add_argument("--token_embedder_onnx", type=str,

@@ -19,9 +19,14 @@ class UIConfig:
     sentence_list_scroll_area_fixed_width = 450
 
     # video processing settings
-    video_consumer_queue_size = 1
-    num_of_inference_per_sec = 10
-    maximum_num_of_frame_collection = 5
+    consumer_queue_size = 10
+    consumer_num_of_inference_per_sec = 3
+    consumer_max_np_array_similarity_queue = 5
+    producer_blocking_mode = False
+    consumer_blocking_mode = False
+    producer_video_frame_skip_interval = 0  # 1st to 4th frames are processed, and the 5th frame is skipped when set to 5.
+    max_producer_worker = 16
+    max_consumer_worker = 4
 
     # Add Sentence Dialog
     score_settings_single_step = 0.005
