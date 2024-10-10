@@ -19,8 +19,14 @@ from typing import Dict, List, Tuple
 
 from dx_engine import InferenceEngine
 
-VIEWER_TOT_SIZE_W = 3840 
-VIEWER_TOT_SIZE_H = 2160
+# 디스플레이 화면의 크기를 알기 위함.
+import tkinter as tk
+
+root = tk.Tk()
+root.withdraw()
+
+VIEWER_TOT_SIZE_W = root.winfo_screenwidth()
+VIEWER_TOT_SIZE_H = root.winfo_screenheight()
 
 SPECIAL_TOKEN = {
     "CLS_TOKEN": "<|startoftext|>",
@@ -54,7 +60,6 @@ def get_args():
     parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/pia_vit_240912.dxnn", help="ONNX file path for video encoder")
     
     return parser.parse_args()
-    # fmt: on
 
 def insert_text_in_term():
     global global_input
@@ -256,13 +261,13 @@ class SingleVideoThread(threading.Thread):
             except Exception as e:
                 pass
 
-        if self.sol_fps > 0 and self.dxnn_fps > 0:
-            cv2.rectangle(resized_frame, (self.imshow_size[0] - 300, 0), (self.imshow_size[0], 60), 
-                            (0, 0, 0), -1)
-            cv2.putText(resized_frame, "Render perform. : {} FPS".format(int(self.sol_fps)),
-                        (self.imshow_size[0] - 280, 25), self.font_face, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-            cv2.putText(resized_frame,  "NPU perform.    : {} FPS".format(int(self.dxnn_fps)),
-                        (self.imshow_size[0] - 280, 45), self.font_face, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        # if self.sol_fps > 0 and self.dxnn_fps > 0:
+        #     cv2.rectangle(resized_frame, (self.imshow_size[0] - 320, 0), (self.imshow_size[0], 60), 
+        #                     (0, 0, 0), -1)
+        #     cv2.putText(resized_frame, "Render perform. : {} FPS".format(int(self.sol_fps)),
+        #                 (self.imshow_size[0] - 300, 25), self.font_face, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+        #     cv2.putText(resized_frame,  "NPU perform.    : {} FPS".format(int(self.dxnn_fps)),
+        #                 (self.imshow_size[0] - 300, 48), self.font_face, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
 
         return resized_frame
     
@@ -326,8 +331,9 @@ class VideoViewer(threading.Thread):
         self.last_update_time_fps = 0
         self.interval_update_time_fps = 0.3
         
-        self.dxnn_fps = 0
-        self.sol_fps = 0
+        self.total_dxnn_fps = 0
+        self.total_sol_fps = 0
+        self.total_n = 0
         
     def run(self):
         global global_input
@@ -348,16 +354,20 @@ class VideoViewer(threading.Thread):
                 position = vCap.position
                 vCap_imshow_size = vCap.imshow_size
                 self.view_pannel_frame[position[1]:position[1]+vCap_imshow_size[1], position[0]:position[0]+vCap_imshow_size[0]] = vCap.get_resized_frame()
+                if vCap.sol_fps > 0 and vCap.dxnn_fps > 0:
+                    self.total_dxnn_fps += vCap.dxnn_fps
+                    self.total_sol_fps += vCap.sol_fps
+                    self.total_n += 1
             
-            # if self.sol_fps > 0 and self.dxnn_fps > 0:
-            #     cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
-            #                   (0, 0, 0), -1)
-            #     cv2.putText(self.view_pannel_frame, "APP  : {} FPS".format(int(self.sol_fps)),
-            #                 (VIEWER_TOT_SIZE_W - 450, 50), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
-            #                 )
-            #     cv2.putText(self.view_pannel_frame,  "NPU  : {} FPS".format(int(self.dxnn_fps)),
-            #                 (VIEWER_TOT_SIZE_W - 450, 100), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
-            #                 )
+            if self.total_sol_fps > 0 and self.total_dxnn_fps > 0 :
+                cv2.rectangle(self.view_pannel_frame, (VIEWER_TOT_SIZE_W - 500, 0), (VIEWER_TOT_SIZE_W, 130), 
+                              (0, 0, 0), -1)
+                cv2.putText(self.view_pannel_frame, "APP  : {:5.3f} FPS".format((self.total_sol_fps/self.total_n)),
+                            (VIEWER_TOT_SIZE_W - 450, 50), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
+                            )
+                cv2.putText(self.view_pannel_frame,  "NPU  : {:5.3f} FPS".format((self.total_dxnn_fps/self.total_n)),
+                            (VIEWER_TOT_SIZE_W - 450, 100), self.font_face, 1, (255, 255, 255), self.text_thickness, cv2.LINE_AA
+                            )
             cv2.imshow('Video', self.view_pannel_frame)
             
             if cv2.waitKey(1) == ord('q'):
@@ -372,20 +382,7 @@ class VideoViewer(threading.Thread):
         self.dxnn_fps = dxnn_fps
         self.sol_fps = sol_fps
         self.last_update_time_fps = current_update_time_fps
-    
-    # def text_pop(self, mode: int):
-    #     self.text_vector_list.pop(-1)
-    #     self.gt_text_list.pop(-1)
-    #     self.result_logits_each_videos = self.result_logits_each_videos[:,:-1]
-    
-    # def text_update(self, new_text: str, new_text_vector):
-    #     self.gt_text_list.append(new_text)
-    #     self.text_vector_list.append(new_text_vector)
-    #     self.result_logits_each_videos = np.append(self.result_logits_each_videos, np.zeros((self.thread_length, 1), dtype=np.float32), axis=1)
-    
-    # def result_logits_clear(self, index):
-    #     self.result_logits_each_videos[index,:] = np.zeros_like(self.result_logits_each_videos[index,:],dtype=np.float32)
-            
+
 
 class DXEngineThread(threading.Thread):
     def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List, video_viewer: VideoViewer):
@@ -612,24 +609,8 @@ def main():
     video_viewer.start()
     dxnn_engine.start()
     
-    # while not global_quit:
-    #     if global_input == "del":
-    #         if len(text_vector_list) > 0:
-    #             video_thread.text_pop(-1)
-    #         global_input = ""
-    #     elif global_input != "" and global_input != "quit":
-    #         new_token = get_text_vectors([global_input], token_embedder, text_encoder)
-    #         video_thread.text_update(global_input, [new_token])
-    #         gt_text_alarm_level.append([0.23, 0.31, 0.26])
-    #         global_input = ""
-    #     else:
-    #         continue
-    
 if __name__ == "__main__":
-    # text_thread = threading.Thread(target=insert_text_in_term)
-    # text_thread.daemon = True
-    # text_thread.start()
     
     main()
     
-    # text_thread.join()
+continuecontinue
