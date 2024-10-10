@@ -15,7 +15,7 @@ case $select in
         1-2)./run_pia_demo_pyqt.sh --number_of_channels 1 --terminal_mode 1;;
         1-3)./run_pia_demo_pyqt.sh --number_of_channels 1 --terminal_mode 1 --camera_mode 1;;
         2)./run_pia_demo_pyqt.sh --number_of_channels 16;;
-        2-2)./run_pia_demo_pyqt.sh --number_of_channels 16 --ternimal_mode 1;;
+        2-2)./run_pia_demo_pyqt.sh --number_of_channels 16 --terminal_mode 1;;
         2-3)./run_pia_demo_pyqt.sh --number_of_channels 16 --terminal_mode 1 --camera_mode 1;;
         *)./run_pia_demo_pyqt.sh;;
 esac
