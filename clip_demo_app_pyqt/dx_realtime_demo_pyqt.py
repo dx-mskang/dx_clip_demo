@@ -1,5 +1,6 @@
 
 import sys
+import os
 
 from PyQt5.QtWidgets import QApplication
 
@@ -8,6 +9,8 @@ from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
 # fmt: on
 
 def main():
+    os.environ["XDG_SESSION_TYPE"] = "xcb"
+
     # Get Input Arguments
     args = ParserUtil.get_args()
 

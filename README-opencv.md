@@ -6,7 +6,7 @@
 ### Pre-Requisite
 Ensure you are using Python 3.11.
 ```bash
-sudo apt-get install -y python3.11 python3.11-dev python3.11-venv
+sudo apt-get install -y python3.11 python3.11-dev python3.11-venv python3-tk
 ```
 
 #### Get assets (input videos and prebuilt CLIP AI model) files
