@@ -19,7 +19,7 @@ class UIConfig:
     sentence_list_scroll_area_fixed_width = 450
 
     # video processing settings
-    consumer_queue_size = 10
+    consumer_queue_size = 1
     consumer_num_of_inference_per_sec = 3
     consumer_max_np_array_similarity_queue = 5
     producer_blocking_mode = False
