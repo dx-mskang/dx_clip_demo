@@ -152,6 +152,14 @@ class SettingsView(QMainWindow):
         else:
             result_video_path_lists = video_path_lists[:number_of_channels]
 
+            if len(video_path_lists) > number_of_channels:
+                residue_video_path_lists = video_path_lists[number_of_channels:]
+                idx = 0
+                for item in residue_video_path_lists:
+                    calc_idx = idx % number_of_channels
+                    result_video_path_lists[calc_idx] = result_video_path_lists[calc_idx] + item
+                    idx += 1
+
             if camera_mode:
                 result_video_path_lists.append(["/dev/video0"])
                 result_num_of_channels = number_of_channels + 1
