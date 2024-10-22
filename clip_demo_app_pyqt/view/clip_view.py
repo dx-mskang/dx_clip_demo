@@ -602,12 +602,12 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 overall_sol_fps = sum_overall_sol_fps / len(self.each_fps_info_list)
 
                 self.overall_fps_label.setText(
-                    f" NPU FPS: {overall_dxnn_fps:.2f}, Render FPS: {overall_sol_fps:.2f} ")
+                    f" NPU FPS: {overall_dxnn_fps:.2f}, APP FPS: {overall_sol_fps:.2f} ")
 
     def update_each_fps(self, channel_idx, dxnn_fps, sol_fps):
         with self.__fps_lock:
             if self.ui_helper.ui_config.show_each_fps_label:
-                self.each_fps_label_list[channel_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, Render FPS: {sol_fps:.2f} ")
+                self.each_fps_label_list[channel_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, APP FPS: {sol_fps:.2f} ")
 
             self.each_fps_info_list[channel_idx]["dxnn_fps"] = dxnn_fps
             self.each_fps_info_list[channel_idx]["sol_fps"] = sol_fps

@@ -1,6 +1,6 @@
 .idea
 .vscode
-assets/
+/assets/
 pia-package-executor*/
 profiler.json
 .venv/
@@ -8,3 +8,6 @@ profiler.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+
+**/docs/**/*.pdf
+**/docs/docs_web/

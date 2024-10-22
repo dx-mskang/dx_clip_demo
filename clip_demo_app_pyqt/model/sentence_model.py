@@ -60,7 +60,7 @@ class SentenceModel(Model):
         self.__sentence_lock = threading.Lock()
 
         self.__sentence_list = sentence_list
-        self.__sentence_vector_list = TextVectorUtil.get_text_vector_list(
+        self.__sentence_vector_list  = TextVectorUtil.get_text_vector_list(
             [sentence.getText() for sentence in self.__sentence_list])
 
     def push_sentence(self, text_input,

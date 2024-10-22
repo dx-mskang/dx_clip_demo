@@ -13,8 +13,9 @@ class UIConfig:
     show_each_fps_label = False
     fullscreen_mode = True
     dark_theme = True
+
+    # sentence(text) processing settings
     number_of_alarms = 2
-    sentence_input_min_width = 400
     sentence_list_scroll_area_min_height = 150
     sentence_list_scroll_area_fixed_width = 450
 
@@ -29,6 +30,7 @@ class UIConfig:
     max_consumer_worker = 4
 
     # Add Sentence Dialog
+    sentence_input_min_width = 400
     score_settings_single_step = 0.005
     score_settings_decimals = 3
 
