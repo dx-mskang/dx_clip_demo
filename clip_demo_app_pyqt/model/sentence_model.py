@@ -26,6 +26,7 @@ class Sentence:
     def getScoreThreshold(self) -> float:
         return self.__score_threshold
 
+
 class SentenceOutput:
     def __init__(self, sentence: Sentence, score: float):
         self.__sentence = sentence
@@ -60,7 +61,7 @@ class SentenceModel(Model):
         self.__sentence_lock = threading.Lock()
 
         self.__sentence_list = sentence_list
-        self.__sentence_vector_list  = TextVectorUtil.get_text_vector_list(
+        self.__sentence_vector_list = TextVectorUtil.get_text_vector_list(
             [sentence.getText() for sentence in self.__sentence_list])
 
     def push_sentence(self, text_input,
@@ -68,8 +69,8 @@ class SentenceModel(Model):
                       score_max,
                       score_threshold):
         with self.__sentence_lock:
-            self.__sentence_list.append(Sentence(text_input, score_min, score_max, score_threshold))
-            self.__sentence_vector_list.append(TextVectorUtil.get_text_vector(text_input))
+            self.__sentence_list.insert(0, Sentence(text_input, score_min, score_max, score_threshold))
+            self.__sentence_vector_list.insert(0, TextVectorUtil.get_text_vector(text_input))
 
     def pop_sentence(self, index=None):
         with self.__sentence_lock:

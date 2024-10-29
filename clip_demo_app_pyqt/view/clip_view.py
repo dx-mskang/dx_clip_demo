@@ -14,6 +14,7 @@ from pyqttoast import ToastPreset, ToastPosition, Toast
 
 from clip_demo_app_pyqt.common.base import CombinedMeta, Base
 from clip_demo_app_pyqt.data.input_data import InputData
+from clip_demo_app_pyqt.view.settings_view import MergedVideoGridInfo
 from clip_demo_app_pyqt.viewmodel.clip_view_model import ClipViewModel
 from clip_demo_app_pyqt.common.config.ui_config import UIHelper, UIConfig
 from clip_demo_app_pyqt.view.multithreading.clip_video_consumer import ClipVideoConsumer
@@ -103,7 +104,8 @@ class AddSentenceDialog(QDialog):
 
 
 class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
-    def __init__(self, view_model: ClipViewModel, ui_config: UIConfig, base_path, adjusted_video_path_lists):
+    def __init__(self, view_model: ClipViewModel, ui_config: UIConfig, base_path, adjusted_video_path_lists,
+                 adjusted_video_grid_info):
         QMainWindow.__init__(self)
         QObject.__init__(self)
         self.__fps_lock = threading.Lock()
@@ -111,6 +113,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.base_path = base_path
         self.adjusted_video_path_lists = adjusted_video_path_lists
+        self.adjusted_video_grid_info: MergedVideoGridInfo = adjusted_video_grid_info
         self.ui_config = ui_config
 
         self.ui_helper = UIHelper(self, self.ui_config)
@@ -119,11 +122,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         if self.ui_helper.ui_config.dark_theme:
             self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
-
-        if self.ui_helper.ui_config.fullscreen_mode:
-            self.showFullScreen()
-
-        self.resize(self.ui_helper.video_area_w, self.ui_helper.video_area_h)
 
         # List for calculating overall FPS
         self.each_fps_info_list = []
@@ -182,6 +180,23 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.start()
         self.refresh_sentence_list()
 
+        self.resize(self.ui_helper.video_area_w, self.ui_helper.video_area_h)
+
+        if self.ui_helper.ui_config.fullscreen_mode:
+            self.showFullScreen()
+
+    @overrides()
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refresh_video_size()
+
+    def _refresh_video_size(self):
+        if self.__video_worker_list:
+            for video_worker in self.__video_worker_list:
+                ratio = 0.95
+                new_size = self.video_label_list[video_worker.get_channel_idx()].size()
+                video_worker.get_video_producer().set_video_label_size(
+                    (int(round(new_size.width() * ratio)), int(round(new_size.height() * ratio))))
 
     def __setup_video_worker_list(self):
         for channel_idx in range(self.ui_config.num_channels):
@@ -214,7 +229,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
             video_worker = VideoWorker(channel_idx, video_producer, video_consumer)
             self.__video_worker_list.append(video_worker)
-
 
     def __layout_setup(self):
         video_layout = QVBoxLayout()
@@ -272,91 +286,122 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
     def generate_video_box(self):
         if self.ui_helper.ui_config.num_channels == 1:
-            # case of single-channel
-            video_layout = QVBoxLayout()
-
-            if self.ui_helper.ui_config.show_each_fps_label:
-                each_fps_label = QLabel("", self)
-                each_fps_label.setFont(self.ui_helper.small_font)
-                each_fps_label.setFixedHeight(self.ui_helper.small_font_line_height)
-                each_fps_label.setAlignment(Qt.AlignRight)
-                self.each_fps_label_list.append(each_fps_label)
-                video_layout.addWidget(each_fps_label)
-            self.each_fps_info_list.append({"dxnn_fps": -1, "sol_fps": -1})
-
-            video_label = QLabel(self)
-            video_label.setAlignment(Qt.AlignCenter)
-            self.video_label_list.append(video_label)
-            video_layout.addWidget(video_label)
-
-            sentence_output_layout = QVBoxLayout()
-            sentence_output_widget = QWidget()
-            sentence_output_widget.setLayout(sentence_output_layout)
-
-            sentence_output_area = QScrollArea()
-            sentence_output_area.setContentsMargins(0, 0, 0, 0)
-            sentence_output_area.setWidget(sentence_output_widget)
-            sentence_output_area.setWidgetResizable(True)
-            sentence_output_area.setFixedHeight(self.ui_helper.large_font_line_height * self.ui_helper.ui_config.number_of_alarms + self.ui_helper.large_font_bottom_padding)
-            sentence_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
-            sentence_output_area.setAlignment(Qt.AlignCenter)
-            sentence_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            sentence_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-
-            video_layout.addWidget(sentence_output_area)
-            self.sentence_output_layout_list.append(sentence_output_layout)
-
-            return video_layout
-        else:
+            return self.__generate_single_channel_video_box()
+        elif self.ui_helper.ui_config.num_channels >= 2:
             # case of multi-channel
-            video_grid_layout = QGridLayout()
+            return self.__generate_multi_channel_video_box()
+        else:
+            raise RuntimeError("num_channels value is not correct")
 
-            for i in range(self.ui_helper.ui_config.num_channels):
+    def __generate_single_channel_video_box(self):
+        # case of single-channel
+        [video_layout, sentence_output_layout, video_label] = self.__generate_video_box_impl(
+            self.ui_helper.large_font, self.ui_helper.large_font_line_height, self.ui_helper.large_font_bottom_padding)
+        self.video_label_list.append(video_label)
+        self.sentence_output_layout_list.append(sentence_output_layout)
+        return video_layout
 
-                video_layout = QVBoxLayout()
-                video_layout.setSpacing(0)
+    def __generate_multi_channel_video_box(self):
+        if self.ui_config.merge_center_grid:
+            return self.__generate_video_grid_layout_for_merge_center_grid()
+        else:
+            return self.__setup_video_grid_layout()
 
-                video_label = QLabel(self)
-                video_label.setAlignment(Qt.AlignCenter)
-                # video_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
-                video_label.setContentsMargins(0, 0, 0, 0)
+    def __generate_video_grid_layout_for_merge_center_grid(self):
+        video_grid_layout = QGridLayout()
+        grid = self.adjusted_video_grid_info
 
+        outer_channel_idx = 0
+        for row in range(grid.grid_size):
+            for col in range(grid.grid_size):
+                # Skip the central area
+                if grid.center_start <= row < grid.center_end and grid.center_start <= col < grid.center_end:
+                    continue
 
-                if self.ui_helper.ui_config.show_each_fps_label:
-                    each_fps_label = QLabel("FPS: N/A", self)
-                    each_fps_label.setFont(self.ui_helper.smaller_font)
-                    each_fps_label.setFixedHeight(self.ui_helper.smaller_font_line_height)
-                    each_fps_label.setAlignment(Qt.AlignRight)
-                    self.each_fps_label_list.append(each_fps_label)
-                    video_layout.addWidget(each_fps_label)
-                self.each_fps_info_list.append({"dxnn_fps": -1, "sol_fps": -1})     # for calculate overall fps
+                if outer_channel_idx >= grid.outer_channel_max:
+                    break
 
-                sentence_output_layout = QVBoxLayout()
-                sentence_output_layout.setSpacing(0)
-                sentence_output_layout.setContentsMargins(0, 0, 0, 0)
-                sentence_output_widget = QWidget()
-                sentence_output_widget.setLayout(sentence_output_layout)
+                # Create outer channel layout
+                [video_layout, sentence_output_layout, video_label] = self.__generate_video_box_impl(
+                    self.ui_helper.small_font, self.ui_helper.small_font_line_height,
+                    self.ui_helper.small_font_bottom_padding)
 
-                sentence_output_area = QScrollArea()
-                sentence_output_area.setContentsMargins(0, 0, 0, 0)
-                sentence_output_area.setWidget(sentence_output_widget)
-                sentence_output_area.setWidgetResizable(True)
-                sentence_output_area.setFixedHeight(
-                    self.ui_helper.small_font_line_height * self.ui_helper.ui_config.number_of_alarms + self.ui_helper.small_font_bottom_padding)
-                sentence_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
-                sentence_output_area.setAlignment(Qt.AlignCenter)
-                sentence_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                sentence_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-
-                video_layout.addWidget(video_label)
-                video_layout.addWidget(sentence_output_area)
-
-                video_grid_layout.addLayout(video_layout, i // self.ui_helper.grid_cols, i % self.ui_helper.grid_cols)
-
+                video_grid_layout.addLayout(video_layout, row, col)
                 self.sentence_output_layout_list.append(sentence_output_layout)
                 self.video_label_list.append(video_label)
+                outer_channel_idx += 1
 
-            return video_grid_layout
+        # Central camera channel layout
+        [merged_center_grid_layout, merged_center_grid_sentence_output_layout,
+         merged_center_grid_label] = self.__generate_video_box_impl(
+            self.ui_helper.large_font, self.ui_helper.large_font_line_height,
+            self.ui_helper.large_font_bottom_padding, border_color="yellow")
+
+        # Add camera layout to the central area
+        video_grid_layout.addLayout(merged_center_grid_layout, grid.center_start, grid.center_start,
+                                    grid.center_size, grid.center_size)
+        self.sentence_output_layout_list.append(merged_center_grid_sentence_output_layout)
+        self.video_label_list.append(merged_center_grid_label)
+        return video_grid_layout
+
+    def __setup_video_grid_layout(self):
+        video_grid_layout = QGridLayout()
+        for i in range(self.ui_helper.ui_config.num_channels):
+            border_color = "gray"
+            if i+1 == self.ui_helper.ui_config.num_channels and self.ui_config.camera_mode:
+                border_color = "yellow"
+
+            [video_layout, sentence_output_layout, video_label] = self.__generate_video_box_impl(
+                self.ui_helper.small_font, self.ui_helper.small_font_line_height,
+                self.ui_helper.small_font_bottom_padding, border_color=border_color)
+
+            video_grid_layout.addLayout(video_layout, i // self.ui_helper.grid_cols, i % self.ui_helper.grid_cols)
+
+            self.sentence_output_layout_list.append(sentence_output_layout)
+            self.video_label_list.append(video_label)
+        return video_grid_layout
+
+    def __generate_video_box_impl(self, font, font_line_height, font_bottom_padding, border_color="gray"):
+        video_layout = QVBoxLayout()
+        video_layout.setSpacing(0)
+
+        video_label = QLabel(self)
+        video_label.setAlignment(Qt.AlignCenter)
+        video_label.setStyleSheet("border: 1px solid " + border_color + "; padding: 0px; border-radius: 5px;")
+        video_label.setContentsMargins(0, 0, 0, 0)
+        video_layout.addWidget(video_label)
+
+        if self.ui_helper.ui_config.show_each_fps_label:
+            each_fps_label = QLabel("FPS: N/A", self)
+            each_fps_label.setFont(font)
+            each_fps_label.setFixedHeight(font_line_height)
+            each_fps_label.setAlignment(Qt.AlignRight)
+            self.each_fps_label_list.append(each_fps_label)
+            video_layout.addWidget(each_fps_label)
+        self.each_fps_info_list.append({"dxnn_fps": -1, "sol_fps": -1})  # for calculate overall fps
+
+        sentence_output_area, sentence_output_layout = self.__generate_sentence_output_area_impl(font_line_height, font_bottom_padding)
+        video_layout.addWidget(sentence_output_area)
+        return [video_layout, sentence_output_layout, video_label]
+
+    def __generate_sentence_output_area_impl(self, font_line_height, font_bottom_padding):
+        sentence_output_layout = QVBoxLayout()
+        sentence_output_layout.setSpacing(0)
+        sentence_output_layout.setContentsMargins(0, 0, 0, 0)
+        sentence_output_widget = QWidget()
+        sentence_output_widget.setLayout(sentence_output_layout)
+
+        sentence_output_area = QScrollArea()
+        sentence_output_area.setContentsMargins(0, 0, 0, 0)
+        sentence_output_area.setWidget(sentence_output_widget)
+        sentence_output_area.setWidgetResizable(True)
+        sentence_output_area.setFixedHeight(
+            font_line_height * self.ui_helper.ui_config.number_of_alarms + font_bottom_padding)
+        sentence_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
+        sentence_output_area.setAlignment(Qt.AlignCenter)
+        sentence_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sentence_output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        return sentence_output_area, sentence_output_layout
 
     def worker_impl(self, channel_idx: int, worker_type: str, payload):
         video_worker = self.__video_worker_list[channel_idx]
@@ -380,20 +425,19 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def start(self):
         self.__running_video_worker = True
         # start producer
-        timer = threading.Timer(0.001, self.start_producer_worker)  # 스레드 분리 및 재귀 반복
+        timer = threading.Timer(0.001, self.start_producer_worker)  # Thread separation and recursive repetition
         timer.start()
 
         # start consumer
-        timer = threading.Timer(0.001, self.start_consumer_worker)  # 스레드 분리 및 재귀 반복
+        timer = threading.Timer(0.001, self.start_consumer_worker)  # Thread separation and recursive repetition
         timer.start()
 
         self.resume_button.hide()
 
     def start_producer_worker(self, worker_type='producer'):
-
         if self.__running_video_worker:
             if self.__pause_video_worker:
-                timer = threading.Timer(0.1, self.start_producer_worker)  # 스레드 분리 및 재귀 반복
+                timer = threading.Timer(0.1, self.start_producer_worker)  # Thread separation and recursive repetition
                 timer.start()
                 return
 
@@ -419,7 +463,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
             timer = threading.Timer(0.001, self.start_producer_worker)
             timer.start()
-
 
     def start_consumer_worker(self, worker_type='consumer'):
         if self.__running_video_worker:
@@ -447,7 +490,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             # print("self.__consumer_futures clear() : ", len(self.__consumer_futures))
             self.__consumer_futures.clear()
 
-            timer = threading.Timer(0.001, self.start_consumer_worker)    # 스레드 분리 및 재귀 반복
+            timer = threading.Timer(0.001, self.start_consumer_worker)    # Thread separation and recursive repetition
             timer.start()
 
     def resume(self):
@@ -488,7 +531,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             prefix_str += "[" + str(progress) + "%]"
 
         if self.ui_config.show_score:
-            prefix_str +=  "[" + "{:.{}f}".format(score, self.ui_config.score_settings_decimals) + "]"
+            prefix_str += "[" + "{:.{}f}".format(score, self.ui_config.score_settings_decimals) + "]"
 
         # sentence_output box layout
         # [prefix]|[__text]
@@ -496,19 +539,23 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         sentence_output_box.setSpacing(0)
         sentence_output_box.setContentsMargins(0, 0, 0, 0)
 
-        if self.ui_helper.ui_config.num_channels > 1:
-            font = self.ui_helper.small_font
-            prefix_text_fixed_width = self.ui_helper.small_font_prefix_text_fixed_width
-        else:
+        is_camera_source = self.__video_worker_list[idx].get_video_producer().is_camera_source()
+        is_single_channel = self.ui_helper.ui_config.num_channels == 1
+        is_merged_center_grid = (self.adjusted_video_grid_info is not None) and (self.ui_config.num_channels == idx + 1)
+
+        if is_camera_source or is_single_channel or is_merged_center_grid:
             font = self.ui_helper.large_font
             prefix_text_fixed_width = self.ui_helper.large_font_prefix_text_fixed_width
+        else:
+            font = self.ui_helper.small_font
+            prefix_text_fixed_width = self.ui_helper.small_font_prefix_text_fixed_width
 
         if prefix_str != "":
             # prefix
             prefix_label = QLabel(prefix_str, self)
             prefix_label.setFont(font)
             prefix_label.setFixedWidth(prefix_text_fixed_width)
-            # prefix_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
+            prefix_label.setStyleSheet("border: 1px solid red; padding: 0px;")
             prefix_label.setContentsMargins(0, 0, 0, 0)
             prefix_label.setAlignment(Qt.AlignTop)
             sentence_output_box.addWidget(prefix_label)
@@ -516,14 +563,13 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         # sentence_output
         sentence_output_label = QLabel(text, self)
         sentence_output_label.setFont(font)
-        # sentence_output_label.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
-        # sentence_output_label.setStyleSheet("border: 1px solid yellow; padding: 0px;")
+        sentence_output_label.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
+        # sentence_output_label.setStyleSheet("border: 1px solid green; padding: 0px;")
         sentence_output_label.setContentsMargins(0, 0, 0, 0)
         sentence_output_label.setAlignment(Qt.AlignTop)
         sentence_output_box.addWidget(sentence_output_label)
 
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
-
 
     def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING, position=ToastPosition.CENTER):
         toast = Toast(self)
@@ -581,7 +627,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             self.show_toast("Please enter a sentence and press the Add button.")
             return
 
-        self.__view_model.push_sentence(sentence, score_min, score_max,score_threshold)
+        self.__view_model.push_sentence(sentence, score_min, score_max, score_threshold)
 
     def delete_sentence(self, index):
         self.__view_model.pop_sentence(index)

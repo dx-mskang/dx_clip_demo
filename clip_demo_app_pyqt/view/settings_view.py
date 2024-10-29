@@ -1,6 +1,17 @@
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QLineEdit, QSpinBox, QCheckBox, QPushButton, QWidget
+import math
 
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QLineEdit, QSpinBox, QCheckBox, QPushButton, QWidget, \
+    QGridLayout
 from clip_demo_app_pyqt.common.config.ui_config import UIConfig
+
+
+class MergedVideoGridInfo:
+    def __init__(self, center_end, center_size, center_start, grid_size, outer_channel_max):
+        self.center_end = center_end
+        self.center_size = center_size
+        self.center_start = center_start
+        self.grid_size = grid_size
+        self.outer_channel_max = outer_channel_max
 
 
 class SettingsView(QMainWindow):
@@ -32,6 +43,7 @@ class SettingsView(QMainWindow):
         self.success_cb = success_cb
 
         self.adjusted_video_path_lists: list = []
+        self.merged_video_grid_info = None
 
         # UI config
         self.ui_config = UIConfig()
@@ -75,6 +87,7 @@ class SettingsView(QMainWindow):
         # Camera Mode checkbox
         self.camera_mode_checkbox = QCheckBox("Camera Mode", self)
         self.camera_mode_checkbox.setChecked(self.camera_mode)
+        self.camera_mode_checkbox.clicked.connect(self.__onclick_camera_mode_checkbox)
         layout.addWidget(self.camera_mode_checkbox)
 
         # Blocking Mode checkbox
@@ -91,6 +104,11 @@ class SettingsView(QMainWindow):
         self.dark_theme_checkbox = QCheckBox("Dark Theme", self)
         self.dark_theme_checkbox.setChecked(self.ui_config.dark_theme)
         layout.addWidget(self.dark_theme_checkbox)
+
+        # Merge Center Grid checkbox
+        self.merge_center_grid_checkbox = QCheckBox("Merge Center Grid", self)
+        self.merge_center_grid_checkbox.setChecked(self.ui_config.merge_center_grid)
+        layout.addWidget(self.merge_center_grid_checkbox)
 
         # Show FPS Label checkbox
         self.show_each_fps_label_checkbox = QCheckBox("Display FPS for each video", self)
@@ -122,10 +140,16 @@ class SettingsView(QMainWindow):
         self.ui_config.show_each_fps_label = self.show_each_fps_label_checkbox.isChecked()
         self.ui_config.fullscreen_mode = self.fullscreen_mode_checkbox.isChecked()
         self.ui_config.dark_theme = self.dark_theme_checkbox.isChecked()
+        self.ui_config.merge_center_grid = self.merge_center_grid_checkbox.isChecked()
 
-        # adjust_video_path_lists and num_channels
-        [self.adjusted_video_path_lists, self.ui_config.num_channels] = self.get_adjust_video_path_lists(
-            self.video_path_lists, self.ui_config.num_channels, self.ui_config.camera_mode)
+        # adjust video_grid_info, video_path_lists and num_channels
+        if self.ui_config.merge_center_grid:
+            self.merged_video_grid_info = self.__adjust_video_grid_info(self.ui_config, self.ui_config.num_channels,
+                                                                        self.ui_config.camera_mode)
+
+        [self.adjusted_video_path_lists, self.ui_config.num_channels] = self.__adjust_video_path_lists(
+            self.video_path_lists, self.ui_config.num_channels, self.ui_config.camera_mode,
+            self.merged_video_grid_info)
 
         # Close the settings window and start the main app
         self.close()
@@ -135,33 +159,80 @@ class SettingsView(QMainWindow):
         self.success_cb(self)
 
     @staticmethod
-    def get_adjust_video_path_lists(video_path_lists, number_of_channels, camera_mode):
+    def __adjust_video_path_lists(video_path_lists, number_of_channels, camera_mode, merged_video_grid_info):
         result_num_of_channels = number_of_channels
 
-        if number_of_channels <= 1:
-            video_path_lists_for_single = []
-            enriched_path_list = []
-            for path_list in video_path_lists:
-                for path in path_list:
-                    enriched_path_list.append(path)
-            video_path_lists_for_single.append(enriched_path_list)
-            result_video_path_lists = video_path_lists_for_single
+        if number_of_channels <= 1:     # single channel
+            result_video_path_lists = SettingsView.__video_path_lists_for_single_ch(video_path_lists)
 
             if camera_mode:
                 result_video_path_lists[0] = ["/dev/video0"]
-        else:
-            result_video_path_lists = video_path_lists[:number_of_channels]
+        else:      # multi channel
+            merge_center_grid = merged_video_grid_info is not None
+            if camera_mode:
+                number_of_video_grid = number_of_channels - 1
+            else:
+                # If merging the center grid, repeat playback of all 16 videos in the center grid
+                if merge_center_grid:
+                    number_of_video_grid = number_of_channels - 1
+                else:
+                    number_of_video_grid = number_of_channels
 
-            if len(video_path_lists) > number_of_channels:
-                residue_video_path_lists = video_path_lists[number_of_channels:]
+            if merged_video_grid_info is not None:
+                result_num_of_channels = merged_video_grid_info.outer_channel_max + 1
+
+            result_video_path_lists = video_path_lists[:number_of_video_grid]
+
+            if len(video_path_lists) > number_of_video_grid:
+                residue_video_path_lists = video_path_lists[number_of_video_grid:]
                 idx = 0
                 for item in residue_video_path_lists:
-                    calc_idx = idx % number_of_channels
+                    calc_idx = idx % number_of_video_grid
                     result_video_path_lists[calc_idx] = result_video_path_lists[calc_idx] + item
                     idx += 1
 
             if camera_mode:
                 result_video_path_lists.append(["/dev/video0"])
-                result_num_of_channels = number_of_channels + 1
+            else:
+                # If merging the center grid, repeat playback of all 16 videos in the center grid
+                if merge_center_grid:
+                    result_video_path_lists.append(SettingsView.__video_path_lists_for_single_ch(video_path_lists)[0])
 
         return [result_video_path_lists, result_num_of_channels]
+
+    @staticmethod
+    def __video_path_lists_for_single_ch(video_path_lists):
+        video_path_lists_for_single = []
+        enriched_path_list = []
+        for path_list in video_path_lists:
+            for path in path_list:
+                enriched_path_list.append(path)
+        video_path_lists_for_single.append(enriched_path_list)
+        return video_path_lists_for_single
+
+    @staticmethod
+    def __adjust_video_grid_info(ui_config: UIConfig, num_channels: int,
+                                 camera_mode: int) -> None or MergedVideoGridInfo:
+        num_grid_channels = num_channels - 1 if camera_mode else num_channels
+        if num_grid_channels <= 1:
+            return None
+
+        # Dynamically set the grid size
+        grid_size = int(math.ceil(math.sqrt(num_grid_channels)))
+
+        # Adjust to even numbers for grids of size 3x3 or larger
+        if grid_size > 3 and grid_size % 2 != 0:
+            grid_size += 1  # 짝수로 맞추기
+
+        # Calculate central start position and size (e.g., 1x1 for 3x3, 2x2 central area for 4x4 and larger)
+        center_start = grid_size // 2 - grid_size // 4
+        center_size = grid_size // 2 if grid_size > 3 else 1
+        center_end = center_start + center_size
+        outer_channel_max = num_channels - center_size ** 2
+        ui_config.num_channels = outer_channel_max + 1
+        return MergedVideoGridInfo(center_end, center_size, center_start, grid_size, outer_channel_max)
+
+    def __onclick_camera_mode_checkbox(self):
+        # for usability
+        if self.camera_mode_checkbox.isChecked():
+            self.merge_center_grid_checkbox.setChecked(True)

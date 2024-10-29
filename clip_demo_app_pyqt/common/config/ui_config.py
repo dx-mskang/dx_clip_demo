@@ -2,6 +2,7 @@ import math
 
 from PyQt5.QtWidgets import QMainWindow, QApplication
 
+
 class UIConfig:
     # Settings View
     num_channels = 16
@@ -13,6 +14,7 @@ class UIConfig:
     show_each_fps_label = False
     fullscreen_mode = True
     dark_theme = True
+    merge_center_grid = False
 
     # sentence(text) processing settings
     number_of_alarms = 2
@@ -37,6 +39,7 @@ class UIConfig:
     # Clip View
     base_video_area_ratio = 0.65
     fullscreen_mode_negative_padding = 400
+
 
 class UIHelper:
     def __init__(self, ctx: QMainWindow, ui_config: UIConfig):

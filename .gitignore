@@ -10,4 +10,5 @@ __pycache__/
 *.py[cod]
 
 **/docs/**/*.pdf
+**/docs/**/*.zip
 **/docs/docs_web/
