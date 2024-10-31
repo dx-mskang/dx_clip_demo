@@ -103,6 +103,18 @@ class AddSentenceDialog(QDialog):
         return self.score_threshold_input.value()
 
 
+class ModifySentenceDialog(AddSentenceDialog):
+    def __init__(self, sentence, score_min, score_max, score_threshold, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Modify Sentence")
+
+        # set previous sentence data
+        self.sentence_input.setText(sentence.getText())
+        self.score_min_input.setValue(score_min)
+        self.score_max_input.setValue(score_max)
+        self.score_threshold_input.setValue(score_threshold)
+
+
 class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __init__(self, view_model: ClipViewModel, ui_config: UIConfig, base_path, adjusted_video_path_lists,
                  adjusted_video_grid_info):
@@ -151,7 +163,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.resume_button = QPushButton("Resume", self)
         self.pause_button = QPushButton("Pause", self)
 
-        # QPushButton initialization (__text input and delete)
+        # QPushButton initialization (text add and delete)
         self.add_button = QPushButton("Add", self)
         self.clear_button = QPushButton("Clear", self)
 
@@ -589,6 +601,21 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             score_threshold = dialog.get_score_threshold_input_value()
             self.add_sentence(sentence, score_min, score_max, score_threshold)
 
+    def open_modify_sentence_dialog(self, index):
+        # 현재 문장 정보를 가져와 ModifySentenceDialog 열기
+        sentence = self.__view_model.get_sentence_list()[index]
+        score_min = sentence.getScoreMin()
+        score_max = sentence.getScoreMax()
+        score_threshold = sentence.getScoreThreshold()
+
+        dialog = ModifySentenceDialog(sentence, score_min, score_max, score_threshold, self)
+        if dialog.exec_() == QDialog.Accepted:
+            updated_sentence = dialog.get_sentence_input_text()
+            updated_min = dialog.get_score_min_input_value()
+            updated_max = dialog.get_score_max_input_value()
+            updated_threshold = dialog.get_score_threshold_input_value()
+            self.modify_sentence(updated_sentence, updated_min, updated_max, updated_threshold, index)
+
     def refresh_sentence_list(self):
         while self.sentence_list_layout.count():
             item = self.sentence_list_layout.takeAt(0)
@@ -604,10 +631,15 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             # [del]|[sentence]
             sentence_box = QHBoxLayout()
 
-            del_button = QPushButton("Del", self)
-            del_button.setFixedWidth(50)
+            del_button = QPushButton("D", self)
+            del_button.setFixedWidth(20)
             del_button.clicked.connect(lambda _, i=idx: self.delete_sentence(i))
             sentence_box.addWidget(del_button)
+
+            mod_button = QPushButton("M", self)
+            mod_button.setFixedWidth(20)
+            mod_button.clicked.connect(lambda _, i=idx: self.open_modify_sentence_dialog(i))
+            sentence_box.addWidget(mod_button)
 
             sentence_label = QLabel(sentence.getText(), self)
             sentence_box.addWidget(sentence_label)
@@ -627,10 +659,13 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             self.show_toast("Please enter a sentence and press the Add button.")
             return
 
-        self.__view_model.push_sentence(sentence, score_min, score_max, score_threshold)
+        self.__view_model.insert_sentence(sentence, score_min, score_max, score_threshold)
 
     def delete_sentence(self, index):
         self.__view_model.pop_sentence(index)
+
+    def modify_sentence(self, sentence, score_min, score_max, score_threshold, index):
+        self.__view_model.update_sentence(sentence, score_min, score_max, score_threshold, index)
 
     def clear_text_list(self):
         self.__view_model.clear_sentence()

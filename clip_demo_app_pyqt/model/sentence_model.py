@@ -4,6 +4,7 @@ import threading
 from clip_demo_app_pyqt.lib.clip.dx_text_encoder import TextVectorUtil
 from clip_demo_app_pyqt.model.model import Model
 
+
 class Sentence:
     def __init__(self, text: str,
                  score_min: float,
@@ -64,13 +65,14 @@ class SentenceModel(Model):
         self.__sentence_vector_list = TextVectorUtil.get_text_vector_list(
             [sentence.getText() for sentence in self.__sentence_list])
 
-    def push_sentence(self, text_input,
-                      score_min,
-                      score_max,
-                      score_threshold):
+    def insert_sentence(self, text_input,
+                        score_min,
+                        score_max,
+                        score_threshold,
+                        index=0):
         with self.__sentence_lock:
-            self.__sentence_list.insert(0, Sentence(text_input, score_min, score_max, score_threshold))
-            self.__sentence_vector_list.insert(0, TextVectorUtil.get_text_vector(text_input))
+            self.__sentence_list.insert(index, Sentence(text_input, score_min, score_max, score_threshold))
+            self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(text_input))
 
     def pop_sentence(self, index=None):
         with self.__sentence_lock:
@@ -78,6 +80,10 @@ class SentenceModel(Model):
                 index = -1
             self.__sentence_list.pop(index)
             self.__sentence_vector_list.pop(index)
+
+    def update_sentence(self, text_input, score_min, score_max, score_threshold, index):
+        self.pop_sentence(index)
+        self.insert_sentence(text_input, score_min, score_max, score_threshold, index)
 
     def clear_sentence(self):
         with self.__sentence_lock:
@@ -91,4 +97,3 @@ class SentenceModel(Model):
     def get_sentence_vector_list(self) -> list:
         with self.__sentence_lock:
             return copy.deepcopy(self.__sentence_vector_list)
-
