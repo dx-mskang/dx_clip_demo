@@ -2,10 +2,12 @@ import math
 
 from PyQt5.QtWidgets import QMainWindow, QApplication
 
+
 class UIConfig:
     # Settings View
     num_channels = 16
-    terminal_mode = 0
+    settings_mode = 0
+    merge_central_grid = 0
     camera_mode = 0
 
     show_percent = False
@@ -17,14 +19,14 @@ class UIConfig:
     # sentence(text) processing settings
     number_of_alarms = 2
     sentence_list_scroll_area_min_height = 150
-    sentence_list_scroll_area_fixed_width = 450
+    sentence_list_scroll_area_min_width = 450
 
     # video processing settings
     consumer_queue_size = 1
     consumer_num_of_inference_per_sec = 3
     consumer_max_np_array_similarity_queue = 5
-    producer_blocking_mode = False
-    consumer_blocking_mode = False
+    producer_video_fps_sync_mode = False
+    consumer_video_fps_sync_mode = False
     producer_video_frame_skip_interval = 0  # 1st to 4th frames are processed, and the 5th frame is skipped when set to 5.
     max_producer_worker = 16
     max_consumer_worker = 4
@@ -37,6 +39,7 @@ class UIConfig:
     # Clip View
     base_video_area_ratio = 0.65
     fullscreen_mode_negative_padding = 400
+
 
 class UIHelper:
     def __init__(self, ctx: QMainWindow, ui_config: UIConfig):

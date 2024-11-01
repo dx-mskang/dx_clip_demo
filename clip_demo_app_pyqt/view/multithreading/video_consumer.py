@@ -9,11 +9,11 @@ class VideoConsumer(QObject):
     __update_each_fps_signal = pyqtSignal(int, float, float)
     __update_overall_fps_signal = pyqtSignal()
 
-    def __init__(self, channel_idx: int, video_source_changed_signal: pyqtSignal, blocking_mode):
+    def __init__(self, channel_idx: int, video_source_changed_signal: pyqtSignal, video_fps_sync_mode):
         super().__init__()
         self.__running = True
         self.__pause_thread = False
-        self.__blocking_mode = blocking_mode
+        self.__video_fps_sync_mode = video_fps_sync_mode
 
         self._channel_idx = channel_idx
 
@@ -33,7 +33,7 @@ class VideoConsumer(QObject):
                     time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
                     return
 
-                if self.__blocking_mode:
+                if self.__video_fps_sync_mode:
                     time.sleep(1 / fps)
 
                 self._process_impl(channel_idx, frame, fps)

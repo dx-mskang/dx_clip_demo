@@ -16,11 +16,11 @@ class VideoProducer(QObject):
     __video_source_changed_signal = pyqtSignal(int)
 
     def __init__(self, channel_idx: int, base_path: str, video_path_list: List[str], video_size: Tuple,
-                 blocking_mode: int, video_frame_skip_interval: int, sentence_list_updated_signal: pyqtSignal):
+                 video_fps_sync_mode: int, video_frame_skip_interval: int, sentence_list_updated_signal: pyqtSignal):
         super().__init__()
         self.__running = True
         self.__pause_thread = False
-        self.__blocking_mode = blocking_mode
+        self.__video_fps_sync_mode = video_fps_sync_mode
 
         self.__change_video_lock = threading.Lock()
 
@@ -34,14 +34,17 @@ class VideoProducer(QObject):
         self.__current_index = 0
         if video_path_list[0] == "/dev/video0":
             self.__base_path = ""
-            self.__video_path_list = ["/dev/video0"]
-            self.__video_path_current = os.path.join(self.__video_path_list[self.__current_index])
+            self.video_path_list = ["/dev/video0"]
+            self.__video_path_current = os.path.join(self.video_path_list[self.__current_index])
+            self.__is_camera_source = True
         else:
             self.__base_path = base_path
-            self.__video_path_list = video_path_list
-            self.__video_path_current = os.path.join(self.__base_path, self.__video_path_list[self.__current_index] + ".mp4")
+            self.video_path_list = video_path_list
+            self.__video_path_current = os.path.join(self.__base_path, self.video_path_list[self.__current_index] + ".mp4")
+            self.__is_camera_source = False
 
         self.__video_size = video_size
+        self.__video_label_size = video_size
 
         self.__video_capture = cv2.VideoCapture(self.__video_path_current)
 
@@ -52,17 +55,24 @@ class VideoProducer(QObject):
             self.__video_fps = int(round(self.__video_capture.get(cv2.CAP_PROP_FPS), 0))
             logging.debug("channel_idx:" + str(self._channel_idx) + f"FPS: {self.__video_fps}")
 
-        self.__current_video_frame = np.zeros((self.__video_size[1], self.__video_size[0], 3), dtype=np.uint8)
+        self.__current_video_frame = np.zeros((self.__video_label_size[1], self.__video_label_size[0], 3), dtype=np.uint8)
+
+    def is_camera_source(self):
+        return self.__is_camera_source
+
+    def set_video_label_size(self, size: Tuple[int, int]):
+        self.__video_label_size = size
 
     def capture_frame(self):
         logging.debug("VideoProducer thread started, channel_id: " + str(self._channel_idx))
 
-        if self.__running  == False or self.__pause_thread:
+        if self.__running is False or self.__pause_thread:
             time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
             return None
 
-        if self.__blocking_mode:
-            time.sleep(1 / self.__video_fps)
+        if self.__video_fps_sync_mode:
+            # 1: 1sec, 0.75: Adjustment ratio considering NPU inference execution time
+            time.sleep((1 / self.__video_fps) * 0.75)
 
         self.__frame_count += 1
         if self.__video_frame_skip_interval > 0:
@@ -77,7 +87,7 @@ class VideoProducer(QObject):
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        scaled_image = convert_to_qt_format.scaled(self.__video_size[0], self.__video_size[1], Qt.KeepAspectRatio)
+        scaled_image = convert_to_qt_format.scaled(self.__video_label_size[0], self.__video_label_size[1], Qt.KeepAspectRatio)
 
         # Send the scaled QImage to the main thread
         self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
@@ -95,18 +105,18 @@ class VideoProducer(QObject):
 
     def __change_video(self, is_next=False):
         camera_mode = False
-        if self.__video_path_list[0] == '/dev/video0':
+        if self.video_path_list[0] == '/dev/video0':
             camera_mode = True
             is_next = False
 
         if is_next:
-            self.__current_index = 0 if self.__current_index + 1 == len(self.__video_path_list) else self.__current_index + 1
+            self.__current_index = 0 if self.__current_index + 1 == len(self.video_path_list) else self.__current_index + 1
 
         if camera_mode:
-            self.__video_path_current = os.path.join(self.__video_path_list[self.__current_index])
+            self.__video_path_current = os.path.join(self.video_path_list[self.__current_index])
         else:
             self.__video_path_current = os.path.join(self.__base_path,
-                                                     self.__video_path_list[self.__current_index] + ".mp4")
+                                                     self.video_path_list[self.__current_index] + ".mp4")
         with self.__change_video_lock:
             self.__video_capture.release()
             self.__video_capture = cv2.VideoCapture(self.__video_path_current)

@@ -4,7 +4,10 @@ import threading
 from clip_demo_app_pyqt.lib.clip.dx_text_encoder import TextVectorUtil
 from clip_demo_app_pyqt.model.model import Model
 
+
 class Sentence:
+    __disabled = False
+
     def __init__(self, text: str,
                  score_min: float,
                  score_max: float,
@@ -25,6 +28,13 @@ class Sentence:
 
     def getScoreThreshold(self) -> float:
         return self.__score_threshold
+
+    def setDisabled(self, val: bool):
+        self.__disabled = val
+
+    def getDisabled(self):
+        return self.__disabled
+
 
 class SentenceOutput:
     def __init__(self, sentence: Sentence, score: float):
@@ -60,23 +70,37 @@ class SentenceModel(Model):
         self.__sentence_lock = threading.Lock()
 
         self.__sentence_list = sentence_list
-        self.__sentence_vector_list  = TextVectorUtil.get_text_vector_list(
+        self.__sentence_vector_list = TextVectorUtil.get_text_vector_list(
             [sentence.getText() for sentence in self.__sentence_list])
 
-    def push_sentence(self, text_input,
-                      score_min,
-                      score_max,
-                      score_threshold):
-        with self.__sentence_lock:
-            self.__sentence_list.append(Sentence(text_input, score_min, score_max, score_threshold))
-            self.__sentence_vector_list.append(TextVectorUtil.get_text_vector(text_input))
+    def insert_sentence(self, text_input,
+                        score_min,
+                        score_max,
+                        score_threshold,
+                        index=0):
+        self.insert_sentence_obj(Sentence(text_input, score_min, score_max, score_threshold), index)
 
-    def pop_sentence(self, index=None):
+    def insert_sentence_obj(self, sentence: Sentence,
+                            index=0):
+        with self.__sentence_lock:
+            self.__sentence_list.insert(index, sentence)
+            self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(sentence.getText()))
+
+    def pop_sentence(self, index=None) -> Sentence:
         with self.__sentence_lock:
             if index is None:
                 index = -1
-            self.__sentence_list.pop(index)
             self.__sentence_vector_list.pop(index)
+            return self.__sentence_list.pop(index)
+
+    def toggle_sentence(self, index):
+        sentence = self.pop_sentence(index)
+        sentence.setDisabled(not sentence.getDisabled())
+        self.insert_sentence_obj(sentence, index)
+
+    def update_sentence(self, text_input, score_min, score_max, score_threshold, index):
+        self.pop_sentence(index)
+        self.insert_sentence(text_input, score_min, score_max, score_threshold, index)
 
     def clear_sentence(self):
         with self.__sentence_lock:
@@ -90,4 +114,3 @@ class SentenceModel(Model):
     def get_sentence_vector_list(self) -> list:
         with self.__sentence_lock:
             return copy.deepcopy(self.__sentence_vector_list)
-
