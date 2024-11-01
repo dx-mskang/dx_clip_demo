@@ -168,7 +168,7 @@ class ClipVideoConsumer(VideoConsumer):
                 score = logit_list[t]
                 sentence = sentence_list[t]
 
-                if score > sentence.getScoreThreshold():
+                if score > sentence.getScoreThreshold() and sentence.getDisabled() is False:
                     sentence_output_list.append(SentenceOutput(sentence, score))
             except Exception as ex:
                 # traceback.print_exc()

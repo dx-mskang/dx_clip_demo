@@ -29,7 +29,7 @@ class SettingsView(QMainWindow):
 
         # app config setting
         self.number_of_channels = args.number_of_channels
-        self.terminal_mode = args.terminal_mode
+        self.settings_mode = args.settings_mode
         self.camera_mode = args.camera_mode
         self.blocking_mode = args.blocking_mode
 
@@ -79,10 +79,10 @@ class SettingsView(QMainWindow):
         self.show_score_checkbox.setChecked(self.ui_config.show_score)
         layout.addWidget(self.show_score_checkbox)
 
-        # Terminal Mode checkbox
-        self.terminal_mode_checkbox = QCheckBox("Terminal Mode", self)
-        self.terminal_mode_checkbox.setChecked(self.terminal_mode)
-        layout.addWidget(self.terminal_mode_checkbox)
+        # Settings Mode checkbox
+        self.settings_mode_checkbox = QCheckBox("Settings Mode", self)
+        self.settings_mode_checkbox.setChecked(self.settings_mode)
+        layout.addWidget(self.settings_mode_checkbox)
 
         # Camera Mode checkbox
         self.camera_mode_checkbox = QCheckBox("Camera Mode", self)
@@ -130,7 +130,7 @@ class SettingsView(QMainWindow):
 
         # app config (using args)
         self.ui_config.num_channels = self.number_of_channels_input.value()
-        self.ui_config.terminal_mode = self.terminal_mode_checkbox.isChecked()
+        self.ui_config.settings_mode = self.settings_mode_checkbox.isChecked()
         self.ui_config.camera_mode = self.camera_mode_checkbox.isChecked()
         self.ui_config.producer_blocking_mode = self.blocking_mode_checkbox.isChecked()
 

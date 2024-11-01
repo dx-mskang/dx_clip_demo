@@ -8,7 +8,7 @@ import qdarkstyle
 from PyQt5.QtCore import Qt, QObject
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
-    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox
+    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox
 from overrides import overrides
 from pyqttoast import ToastPreset, ToastPosition, Toast
 
@@ -67,11 +67,11 @@ class AddSentenceDialog(QDialog):
         score_settings_box.addWidget(self.score_threshold_input)
 
         # Layout configuration
-        terminal_box = QVBoxLayout()
-        terminal_box.addWidget(sentence_input_label)
-        terminal_box.addWidget(self.sentence_input)
-        terminal_box.addWidget(score_settings_label)
-        terminal_box.addLayout(score_settings_box)
+        settings_box = QVBoxLayout()
+        settings_box.addWidget(sentence_input_label)
+        settings_box.addWidget(self.sentence_input)
+        settings_box.addWidget(score_settings_label)
+        settings_box.addLayout(score_settings_box)
 
         # Add Cancel and Submit buttons
         button_box = QHBoxLayout()
@@ -80,8 +80,8 @@ class AddSentenceDialog(QDialog):
         button_box.addWidget(cancel_button)
         button_box.addWidget(submit_button)
 
-        terminal_box.addLayout(button_box)
-        self.setLayout(terminal_box)
+        settings_box.addLayout(button_box)
+        self.setLayout(settings_box)
 
         # Connect button actions
         cancel_button.clicked.connect(self.reject)
@@ -120,6 +120,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                  adjusted_video_grid_info):
         QMainWindow.__init__(self)
         QObject.__init__(self)
+        self.root_layout = None
+        self.prev_app_layout_container = None
+        self.prev_app_layout = None
         self.__fps_lock = threading.Lock()
         self.__view_model = view_model
 
@@ -132,7 +135,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.setWindowTitle("Video Processing App")
 
-        if self.ui_helper.ui_config.dark_theme:
+        if self.ui_config.dark_theme:
             self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
         # List for calculating overall FPS
@@ -153,15 +156,27 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.sentence_list_scroll_area.setWidget(self.sentence_widget)
         self.sentence_list_scroll_area.setWidgetResizable(True)
         self.sentence_list_scroll_area.setMinimumHeight(self.ui_config.sentence_list_scroll_area_min_height)
-        self.sentence_list_scroll_area.setFixedWidth(self.ui_config.sentence_list_scroll_area_fixed_width)
-
+        self.sentence_list_scroll_area.setMinimumWidth(self.ui_config.sentence_list_scroll_area_min_width)
+                                            
         # QLabel initialization (FPS display)
         self.overall_fps_label = QLabel("FPS: N/A", self)
         self.overall_fps_label.setAlignment(Qt.AlignRight)
 
         # QPushButton initialization (start and stop video)
+        self.show_settings_button = QPushButton("Settings", self)
         self.resume_button = QPushButton("Resume", self)
         self.pause_button = QPushButton("Pause", self)
+
+        self.show_settings_button.setCheckable(True)
+        self.show_settings_button.setChecked(self.ui_config.settings_mode)
+
+        self.show_percentage_button = QPushButton("Percent", self)
+        self.show_percentage_button.setCheckable(True)
+        self.show_percentage_button.setChecked(self.ui_config.show_percent)
+
+        self.show_score_button = QPushButton("Score", self)
+        self.show_score_button.setCheckable(True)
+        self.show_score_button.setChecked(self.ui_config.show_score)
 
         # QPushButton initialization (text add and delete)
         self.add_button = QPushButton("Add", self)
@@ -170,6 +185,10 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         # Connect button events
         self.resume_button.clicked.connect(self.resume)
         self.pause_button.clicked.connect(self.pause)
+        self.show_settings_button.clicked.connect(self.__toggle_settings)
+        self.show_percentage_button.clicked.connect(self.__toggle_percent)
+        self.show_score_button.clicked.connect(self.__toggle_score)
+
         self.add_button.clicked.connect(self.open_add_sentence_dialog)
         self.clear_button.clicked.connect(self.clear_text_list)
 
@@ -194,7 +213,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.resize(self.ui_helper.video_area_w, self.ui_helper.video_area_h)
 
-        if self.ui_helper.ui_config.fullscreen_mode:
+        if self.ui_config.fullscreen_mode:
             self.showFullScreen()
 
     @overrides()
@@ -243,63 +262,89 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             self.__video_worker_list.append(video_worker)
 
     def __layout_setup(self):
-        video_layout = QVBoxLayout()
-        video_box = self.generate_video_box()
-        video_layout.addLayout(video_box)
+        # 루트 위젯과 레이아웃을 한 번만 생성
+        if not hasattr(self, "root_widget"):
+            self.settings_box_widget = QWidget()
+            self.settings_box_layout = QVBoxLayout(self.settings_box_widget)
+            self.settings_box_layout.addLayout(self.generate_settings_box())
 
-        control_layout = QVBoxLayout()
-        button_box = self.generate_control_ui()
-        control_layout.addLayout(button_box)
+            self.top_panel_layout = QVBoxLayout()
+            self.top_panel_layout.addLayout(self.generate_control_ui())
 
-        if self.ui_helper.ui_config.terminal_mode:
-            terminal_box = self.generate_terminal_box()
-            control_layout.addLayout(terminal_box)
+            self.main_panel_layout = QHBoxLayout()
+            self.main_panel_layout.addLayout(self.generate_video_box())
+            self.main_panel_layout.addWidget(self.settings_box_widget)
 
-            app_layout = QHBoxLayout()
-            app_layout.addLayout(video_layout)
-            app_layout.addLayout(control_layout)
-        else:
-            app_layout = QVBoxLayout()
-            app_layout.addLayout(control_layout)
-            app_layout.addLayout(video_layout)
+            self.root_widget = QWidget()
+            self.root_layout = QVBoxLayout(self.root_widget)
+            self.root_layout.addLayout(self.top_panel_layout)
+            self.root_layout.addLayout(self.main_panel_layout)
 
-        container = QWidget()
-        container.setLayout(app_layout)
-        self.setCentralWidget(container)
+            self.setCentralWidget(self.root_widget)
 
-    def generate_terminal_box(self):
-        # terminal layout
+        # settings_mode에 따라 settings_box의 표시 여부만 조정
+        self.settings_box_widget.setVisible(self.ui_config.settings_mode)
+
+    def __toggle_settings(self):
+        # settings_mode 토글
+        self.ui_config.settings_mode = not self.ui_config.settings_mode
+        # 레이아웃 업데이트
+        self.__layout_setup()
+
+    def generate_settings_box(self):
+        # settings layout
         # [Sentence List]
         # [add] | [clr]
         # --------------------------------
         # [sentence list area]
         # ...
         # --------------------------------
-        terminal_box = QVBoxLayout()
+        settings_box = QVBoxLayout()
         input_control_box = QHBoxLayout()
         input_control_box.addWidget(self.add_button)
         input_control_box.addWidget(self.clear_button)
-        terminal_box.addLayout(input_control_box)
-        terminal_box.addWidget(self.sentence_list_label)
-        terminal_box.addWidget(self.sentence_list_scroll_area)
-        return terminal_box
+        settings_box.addLayout(input_control_box)
+        settings_box.addWidget(self.sentence_list_label)
+        settings_box.addWidget(self.sentence_list_scroll_area)
+        return settings_box
 
     def generate_control_ui(self):
         # [resume] or [pause] | [fps info] | [exit]
         control_box = QHBoxLayout()
-        control_box.addWidget(self.resume_button)
-        control_box.addWidget(self.pause_button)
-        control_box.addWidget(self.overall_fps_label)
-        if self.ui_helper.ui_config.fullscreen_mode:
+
+        ui_toggle_box = QGroupBox("UI Setting")
+        ui_toggle_layout = QHBoxLayout()
+        ui_toggle_layout.addWidget(self.show_percentage_button)
+        ui_toggle_layout.addWidget(self.show_score_button)
+        ui_toggle_box.setLayout(ui_toggle_layout)
+        control_box.addWidget(ui_toggle_box)
+
+        fps_box = QGroupBox("FPS info")
+        fps_layout = QHBoxLayout()
+        fps_layout.addWidget(self.overall_fps_label)
+        fps_box.setLayout(fps_layout)
+        control_box.addWidget(fps_box)
+
+        app_control_box = QGroupBox("App Control")
+        app_control_layout = QHBoxLayout()
+        app_control_layout.addWidget(self.show_settings_button)
+        app_control_layout.addWidget(self.resume_button)
+        app_control_layout.addWidget(self.pause_button)
+
+        if self.ui_config.fullscreen_mode:
             exit_button = QPushButton("Exit", self)
             exit_button.clicked.connect(self.close_application)
-            control_box.addWidget(exit_button)
+            app_control_layout.addWidget(exit_button)
+
+        app_control_box.setLayout(app_control_layout)
+        control_box.addWidget(app_control_box)
+
         return control_box
 
     def generate_video_box(self):
-        if self.ui_helper.ui_config.num_channels == 1:
+        if self.ui_config.num_channels == 1:
             return self.__generate_single_channel_video_box()
-        elif self.ui_helper.ui_config.num_channels >= 2:
+        elif self.ui_config.num_channels >= 2:
             # case of multi-channel
             return self.__generate_multi_channel_video_box()
         else:
@@ -358,9 +403,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
     def __setup_video_grid_layout(self):
         video_grid_layout = QGridLayout()
-        for i in range(self.ui_helper.ui_config.num_channels):
+        for i in range(self.ui_config.num_channels):
             border_color = "gray"
-            if i+1 == self.ui_helper.ui_config.num_channels and self.ui_config.camera_mode:
+            if i+1 == self.ui_config.num_channels and self.ui_config.camera_mode:
                 border_color = "yellow"
 
             [video_layout, sentence_output_layout, video_label] = self.__generate_video_box_impl(
@@ -383,7 +428,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         video_label.setContentsMargins(0, 0, 0, 0)
         video_layout.addWidget(video_label)
 
-        if self.ui_helper.ui_config.show_each_fps_label:
+        if self.ui_config.show_each_fps_label:
             each_fps_label = QLabel("FPS: N/A", self)
             each_fps_label.setFont(font)
             each_fps_label.setFixedHeight(font_line_height)
@@ -408,7 +453,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         sentence_output_area.setWidget(sentence_output_widget)
         sentence_output_area.setWidgetResizable(True)
         sentence_output_area.setFixedHeight(
-            font_line_height * self.ui_helper.ui_config.number_of_alarms + font_bottom_padding)
+            font_line_height * self.ui_config.number_of_alarms + font_bottom_padding)
         sentence_output_area.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
         sentence_output_area.setAlignment(Qt.AlignCenter)
         sentence_output_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -525,6 +570,12 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.resume_button.show()
 
+    def __toggle_percent(self):
+        self.ui_config.show_percent = self.show_percentage_button.isChecked()
+
+    def __toggle_score(self):
+        self.ui_config.show_score = self.show_score_button.isChecked()
+
     def update_scaled_video_frame(self, channel_idx: int, qt_img):
         self.video_label_list[channel_idx].setPixmap(QPixmap.fromImage(qt_img))
 
@@ -552,7 +603,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         sentence_output_box.setContentsMargins(0, 0, 0, 0)
 
         is_camera_source = self.__video_worker_list[idx].get_video_producer().is_camera_source()
-        is_single_channel = self.ui_helper.ui_config.num_channels == 1
+        is_single_channel = self.ui_config.num_channels == 1
         is_merged_center_grid = (self.adjusted_video_grid_info is not None) and (self.ui_config.num_channels == idx + 1)
 
         if is_camera_source or is_single_channel or is_merged_center_grid:
@@ -567,7 +618,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             prefix_label = QLabel(prefix_str, self)
             prefix_label.setFont(font)
             prefix_label.setFixedWidth(prefix_text_fixed_width)
-            prefix_label.setStyleSheet("border: 1px solid red; padding: 0px;")
+            # prefix_label.setStyleSheet("border: 1px solid red; padding: 0px;")
             prefix_label.setContentsMargins(0, 0, 0, 0)
             prefix_label.setAlignment(Qt.AlignTop)
             sentence_output_box.addWidget(prefix_label)
@@ -631,15 +682,21 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             # [del]|[sentence]
             sentence_box = QHBoxLayout()
 
+            mod_button = QPushButton("M", self)
+            mod_button.setFixedWidth(20)
+            mod_button.clicked.connect(lambda _, i=idx: self.open_modify_sentence_dialog(i))
+            sentence_box.addWidget(mod_button)
+
             del_button = QPushButton("D", self)
             del_button.setFixedWidth(20)
             del_button.clicked.connect(lambda _, i=idx: self.delete_sentence(i))
             sentence_box.addWidget(del_button)
 
-            mod_button = QPushButton("M", self)
-            mod_button.setFixedWidth(20)
-            mod_button.clicked.connect(lambda _, i=idx: self.open_modify_sentence_dialog(i))
-            sentence_box.addWidget(mod_button)
+            sentence_toggle_checkbox = QCheckBox("", self)
+            sentence_toggle_checkbox.setChecked(not sentence.getDisabled())
+            sentence_toggle_checkbox.clicked.connect(lambda _, i=idx: self.toggle_sentence(i))
+            sentence_toggle_checkbox.setFixedWidth(40)
+            sentence_box.addWidget(sentence_toggle_checkbox)
 
             sentence_label = QLabel(sentence.getText(), self)
             sentence_box.addWidget(sentence_label)
@@ -664,6 +721,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def delete_sentence(self, index):
         self.__view_model.pop_sentence(index)
 
+    def toggle_sentence(self, index):
+        self.__view_model.toggle_sentence(index)
+
     def modify_sentence(self, sentence, score_min, score_max, score_threshold, index):
         self.__view_model.update_sentence(sentence, score_min, score_max, score_threshold, index)
 
@@ -687,7 +747,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
     def update_each_fps(self, channel_idx, dxnn_fps, sol_fps):
         with self.__fps_lock:
-            if self.ui_helper.ui_config.show_each_fps_label:
+            if self.ui_config.show_each_fps_label:
                 self.each_fps_label_list[channel_idx].setText(f" NPU FPS: {dxnn_fps:.2f}, APP FPS: {sol_fps:.2f} ")
 
             self.each_fps_info_list[channel_idx]["dxnn_fps"] = dxnn_fps

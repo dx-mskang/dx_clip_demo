@@ -6,6 +6,8 @@ from clip_demo_app_pyqt.model.model import Model
 
 
 class Sentence:
+    __disabled = False
+
     def __init__(self, text: str,
                  score_min: float,
                  score_max: float,
@@ -26,6 +28,12 @@ class Sentence:
 
     def getScoreThreshold(self) -> float:
         return self.__score_threshold
+
+    def setDisabled(self, val: bool):
+        self.__disabled = val
+
+    def getDisabled(self):
+        return self.__disabled
 
 
 class SentenceOutput:
@@ -70,16 +78,25 @@ class SentenceModel(Model):
                         score_max,
                         score_threshold,
                         index=0):
-        with self.__sentence_lock:
-            self.__sentence_list.insert(index, Sentence(text_input, score_min, score_max, score_threshold))
-            self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(text_input))
+        self.insert_sentence_obj(Sentence(text_input, score_min, score_max, score_threshold), index)
 
-    def pop_sentence(self, index=None):
+    def insert_sentence_obj(self, sentence: Sentence,
+                            index=0):
+        with self.__sentence_lock:
+            self.__sentence_list.insert(index, sentence)
+            self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(sentence.getText()))
+
+    def pop_sentence(self, index=None) -> Sentence:
         with self.__sentence_lock:
             if index is None:
                 index = -1
-            self.__sentence_list.pop(index)
             self.__sentence_vector_list.pop(index)
+            return self.__sentence_list.pop(index)
+
+    def toggle_sentence(self, index):
+        sentence = self.pop_sentence(index)
+        sentence.setDisabled(not sentence.getDisabled())
+        self.insert_sentence_obj(sentence, index)
 
     def update_sentence(self, text_input, score_min, score_max, score_threshold, index):
         self.pop_sentence(index)

@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QMainWindow, QApplication
 class UIConfig:
     # Settings View
     num_channels = 16
-    terminal_mode = 0
+    settings_mode = 0
     camera_mode = 0
 
     show_percent = False
@@ -19,7 +19,7 @@ class UIConfig:
     # sentence(text) processing settings
     number_of_alarms = 2
     sentence_list_scroll_area_min_height = 150
-    sentence_list_scroll_area_fixed_width = 450
+    sentence_list_scroll_area_min_width = 450
 
     # video processing settings
     consumer_queue_size = 1

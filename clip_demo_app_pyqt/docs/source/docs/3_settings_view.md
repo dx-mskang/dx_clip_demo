@@ -13,8 +13,8 @@ The demo app provides a `Settings View` where specific features offered by the a
     - Set whether to display the percentage of the similarity value for the matching sentence.
 4. **Display Score**:
     - Set whether to display the score of the similarity value for the matching sentence.
-5. **Terminal Mode**:
-    - Enable or disable the input terminal UI, where you can add, delete, or clear all sentences.
+5. **Settings Mode**:
+    - Enable or disable the input Settings UI, where you can add, delete, or clear all sentences.
 6. **Camera Mode**:
     - **Single-channel Mode**: Enable the camera mode to replace the video with the one from the device-connected camera.
     - **Multi-channel Mode**: Enable the camera mode to add the video from the device-connected camera to the channels.
@@ -31,14 +31,14 @@ The default values configured in the `Settings View` are defined as follows in `
 
 ```python
 class UIConfig:
-    # Settings View
-    num_channels = 16
-    terminal_mode = 0
-    camera_mode = 0
+   # Settings View
+   num_channels = 16
+   settings_mode = 0
+   camera_mode = 0
 
-    show_percent = False
-    show_score = False
-    show_each_fps_label = False
-    fullscreen_mode = True
-    dark_theme = True
+   show_percent = False
+   show_score = False
+   show_each_fps_label = False
+   fullscreen_mode = True
+   dark_theme = True
 ```

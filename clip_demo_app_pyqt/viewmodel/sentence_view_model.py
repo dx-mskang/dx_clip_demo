@@ -27,6 +27,10 @@ class SentenceViewModel(ViewModel):
         self.__sentence_model.pop_sentence(index)
         self._sentence_list_updated_signal.emit()
 
+    def toggle_sentence(self, index):
+        self.__sentence_model.toggle_sentence(index)
+        self._sentence_list_updated_signal.emit()
+
     def clear_sentence(self):
         self.__sentence_model.clear_sentence()
         self._sentence_list_updated_signal.emit()
