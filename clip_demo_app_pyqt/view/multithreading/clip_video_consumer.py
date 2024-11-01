@@ -26,8 +26,8 @@ class ClipVideoConsumer(VideoConsumer):
     def __init__(self, channel_idx: int, number_of_alarms: list,
                  video_source_changed_signal: pyqtSignal,
                  sentence_list_update_signal: pyqtSignal, num_of_inference_per_sec: int,
-                 max_np_array_similarity_queue: int, consumer_blocking_mode: bool, ctx: ClipViewModel):
-        super().__init__(channel_idx, video_source_changed_signal, consumer_blocking_mode)
+                 max_np_array_similarity_queue: int, consumer_video_fps_sync_mode: bool, ctx: ClipViewModel):
+        super().__init__(channel_idx, video_source_changed_signal, consumer_video_fps_sync_mode)
         self.ctx = ctx
         self.__number_of_alarms = number_of_alarms
         self.__num_of_inference_per_sec = num_of_inference_per_sec  # Number of frames per second for inference (e.g., 10)

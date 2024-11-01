@@ -7,6 +7,7 @@ class UIConfig:
     # Settings View
     num_channels = 16
     settings_mode = 0
+    merge_central_grid = 0
     camera_mode = 0
 
     show_percent = False
@@ -14,7 +15,6 @@ class UIConfig:
     show_each_fps_label = False
     fullscreen_mode = True
     dark_theme = True
-    merge_center_grid = False
 
     # sentence(text) processing settings
     number_of_alarms = 2
@@ -25,8 +25,8 @@ class UIConfig:
     consumer_queue_size = 1
     consumer_num_of_inference_per_sec = 3
     consumer_max_np_array_similarity_queue = 5
-    producer_blocking_mode = False
-    consumer_blocking_mode = False
+    producer_video_fps_sync_mode = False
+    consumer_video_fps_sync_mode = False
     producer_video_frame_skip_interval = 0  # 1st to 4th frames are processed, and the 5th frame is skipped when set to 5.
     max_producer_worker = 16
     max_consumer_worker = 4

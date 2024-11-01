@@ -31,7 +31,8 @@ class SettingsView(QMainWindow):
         self.number_of_channels = args.number_of_channels
         self.settings_mode = args.settings_mode
         self.camera_mode = args.camera_mode
-        self.blocking_mode = args.blocking_mode
+        self.merge_central_grid = args.merge_central_grid
+        self.video_fps_sync_mode = args.video_fps_sync_mode
 
         # input data setting
         from clip_demo_app_pyqt.data.input_data import InputData
@@ -90,10 +91,15 @@ class SettingsView(QMainWindow):
         self.camera_mode_checkbox.clicked.connect(self.__onclick_camera_mode_checkbox)
         layout.addWidget(self.camera_mode_checkbox)
 
-        # Blocking Mode checkbox
-        self.blocking_mode_checkbox = QCheckBox("Blocking Mode", self)
-        self.blocking_mode_checkbox.setChecked(self.blocking_mode)
-        layout.addWidget(self.blocking_mode_checkbox)
+        # Merge the Central Grid checkbox
+        self.merge_central_grid_checkbox = QCheckBox("Merge the central grid", self)
+        self.merge_central_grid_checkbox.setChecked(self.merge_central_grid)
+        layout.addWidget(self.merge_central_grid_checkbox)
+
+        # Video FPS Sync Mode checkbox
+        self.video_fps_sync_mode_checkbox = QCheckBox("Video FPS Sync Mode", self)
+        self.video_fps_sync_mode_checkbox.setChecked(self.video_fps_sync_mode)
+        layout.addWidget(self.video_fps_sync_mode_checkbox)
 
         # Fullscreen Mode checkbox
         self.fullscreen_mode_checkbox = QCheckBox("Fullscreen Mode", self)
@@ -104,11 +110,6 @@ class SettingsView(QMainWindow):
         self.dark_theme_checkbox = QCheckBox("Dark Theme", self)
         self.dark_theme_checkbox.setChecked(self.ui_config.dark_theme)
         layout.addWidget(self.dark_theme_checkbox)
-
-        # Merge Center Grid checkbox
-        self.merge_center_grid_checkbox = QCheckBox("Merge Center Grid", self)
-        self.merge_center_grid_checkbox.setChecked(self.ui_config.merge_center_grid)
-        layout.addWidget(self.merge_center_grid_checkbox)
 
         # Show FPS Label checkbox
         self.show_each_fps_label_checkbox = QCheckBox("Display FPS for each video", self)
@@ -132,7 +133,7 @@ class SettingsView(QMainWindow):
         self.ui_config.num_channels = self.number_of_channels_input.value()
         self.ui_config.settings_mode = self.settings_mode_checkbox.isChecked()
         self.ui_config.camera_mode = self.camera_mode_checkbox.isChecked()
-        self.ui_config.producer_blocking_mode = self.blocking_mode_checkbox.isChecked()
+        self.ui_config.producer_video_fps_sync_mode = self.video_fps_sync_mode_checkbox.isChecked()
 
         # add config (hard-coded)
         self.ui_config.show_percent = self.show_percent_checkbox.isChecked()
@@ -140,10 +141,10 @@ class SettingsView(QMainWindow):
         self.ui_config.show_each_fps_label = self.show_each_fps_label_checkbox.isChecked()
         self.ui_config.fullscreen_mode = self.fullscreen_mode_checkbox.isChecked()
         self.ui_config.dark_theme = self.dark_theme_checkbox.isChecked()
-        self.ui_config.merge_center_grid = self.merge_center_grid_checkbox.isChecked()
+        self.ui_config.merge_central_grid = self.merge_central_grid_checkbox.isChecked()
 
         # adjust video_grid_info, video_path_lists and num_channels
-        if self.ui_config.merge_center_grid:
+        if self.ui_config.merge_central_grid:
             self.merged_video_grid_info = self.__adjust_video_grid_info(self.ui_config, self.ui_config.num_channels,
                                                                         self.ui_config.camera_mode)
 
@@ -168,12 +169,12 @@ class SettingsView(QMainWindow):
             if camera_mode:
                 result_video_path_lists[0] = ["/dev/video0"]
         else:      # multi channel
-            merge_center_grid = merged_video_grid_info is not None
+            merge_central_grid = merged_video_grid_info is not None
             if camera_mode:
                 number_of_video_grid = number_of_channels - 1
             else:
                 # If merging the center grid, repeat playback of all 16 videos in the center grid
-                if merge_center_grid:
+                if merge_central_grid:
                     number_of_video_grid = number_of_channels - 1
                 else:
                     number_of_video_grid = number_of_channels
@@ -195,7 +196,7 @@ class SettingsView(QMainWindow):
                 result_video_path_lists.append(["/dev/video0"])
             else:
                 # If merging the center grid, repeat playback of all 16 videos in the center grid
-                if merge_center_grid:
+                if merge_central_grid:
                     result_video_path_lists.append(SettingsView.__video_path_lists_for_single_ch(video_path_lists)[0])
 
         return [result_video_path_lists, result_num_of_channels]
@@ -235,4 +236,4 @@ class SettingsView(QMainWindow):
     def __onclick_camera_mode_checkbox(self):
         # for usability
         if self.camera_mode_checkbox.isChecked():
-            self.merge_center_grid_checkbox.setChecked(True)
+            self.merge_central_grid_checkbox.setChecked(True)

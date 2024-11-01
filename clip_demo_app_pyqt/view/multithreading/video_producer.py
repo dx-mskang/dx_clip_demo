@@ -16,11 +16,11 @@ class VideoProducer(QObject):
     __video_source_changed_signal = pyqtSignal(int)
 
     def __init__(self, channel_idx: int, base_path: str, video_path_list: List[str], video_size: Tuple,
-                 blocking_mode: int, video_frame_skip_interval: int, sentence_list_updated_signal: pyqtSignal):
+                 video_fps_sync_mode: int, video_frame_skip_interval: int, sentence_list_updated_signal: pyqtSignal):
         super().__init__()
         self.__running = True
         self.__pause_thread = False
-        self.__blocking_mode = blocking_mode
+        self.__video_fps_sync_mode = video_fps_sync_mode
 
         self.__change_video_lock = threading.Lock()
 
@@ -70,7 +70,7 @@ class VideoProducer(QObject):
             time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
             return None
 
-        if self.__blocking_mode:
+        if self.__video_fps_sync_mode:
             # 1: 1sec, 0.75: Adjustment ratio considering NPU inference execution time
             time.sleep((1 / self.__video_fps) * 0.75)
 

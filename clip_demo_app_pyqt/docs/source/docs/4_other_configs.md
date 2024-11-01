@@ -13,8 +13,8 @@ class UIConfig:
     consumer_queue_size = 1
     consumer_num_of_inference_per_sec = 3
     consumer_max_np_array_similarity_queue = 5
-    producer_blocking_mode = False
-    consumer_blocking_mode = False
+    producer_video_fps_sync_mode = False
+    consumer_video_fps_sync_mode = False
     producer_video_frame_skip_interval = 0  # 1st to 4th frames are processed, and the 5th frame is skipped when set to 5.
     max_producer_worker = 16
     max_consumer_worker = 4
@@ -47,9 +47,9 @@ class UIConfig:
         - The number of frames processed per second (embedding generation frequency) by the `VideoConsumer`.
     - consumer_max_np_array_similarity_queue
         - The maximum size of the Queue used by the `VideoConsumer` for calculating the arithmetic mean of the similarity scores between video (image) and sentence (text). For example, if set to 5, the similarity scores for the current frame and the previous 4 frames are summed and averaged.     
-    - producer_blocking_mode
+    - producer_video_fps_sync_mode
         - Forces the frame processing speed of the `VideoProducer` to match the video FPS.
-    - consumer_blocking_mode
+    - consumer_video_fps_sync_mode
         - Forces the frame processing speed of the `VideoConsumer` to match the video FPS.
     - producer_video_frame_skip_interval
         - Specifies the interval for skipping frame processing by the `VideoProducer`. For example, if set to 5, frames 1–4 are processed, and the 5th frame is skipped.

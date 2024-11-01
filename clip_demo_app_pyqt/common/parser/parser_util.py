@@ -19,7 +19,9 @@ class ParserUtil:
         parser.add_argument("--number_of_channels", type=int, default=16, help="Number of input video channels")
         parser.add_argument("--settings_mode", type=int, default=0, help="Settings Mode Setting (off: 0, on: 1)")
         parser.add_argument("--camera_mode", type=int, default=0, help="Camera Mode Setting (off: 0, on: 1)")
-        parser.add_argument("--blocking_mode", type=int, default=0, help="Blocking Mode Setting (off: 0, on: 1)")
+        parser.add_argument("--merge_central_grid", type=int, default=0,
+                            help="Merge the Centeral Grid Setting (off: 0, on: 1)")
+        parser.add_argument("--video_fps_sync_mode", type=int, default=0, help="Video FPS Sync Mode Setting (off: 0, on: 1)")
 
         # Model Path Arguments
         parser.add_argument("--token_embedder_onnx", type=str,

@@ -224,7 +224,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def _refresh_video_size(self):
         if self.__video_worker_list:
             for video_worker in self.__video_worker_list:
-                ratio = 0.95
+                ratio = 0.90
                 new_size = self.video_label_list[video_worker.get_channel_idx()].size()
                 video_worker.get_video_producer().set_video_label_size(
                     (int(round(new_size.width() * ratio)), int(round(new_size.height() * ratio))))
@@ -237,7 +237,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 self.base_path,
                 self.adjusted_video_path_lists[channel_idx],
                 self.ui_helper.video_size,
-                self.ui_config.producer_blocking_mode,
+                self.ui_config.producer_video_fps_sync_mode,
                 self.ui_config.producer_video_frame_skip_interval,
                 sentence_list_updated_signal,
             )
@@ -250,7 +250,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                                                sentence_list_updated_signal,
                                                self.ui_config.consumer_num_of_inference_per_sec,
                                                self.ui_config.consumer_max_np_array_similarity_queue,
-                                               self.ui_config.consumer_blocking_mode,
+                                               self.ui_config.consumer_video_fps_sync_mode,
                                                self.__view_model)
 
             video_consumer.get_update_each_fps_signal().connect(self.update_each_fps)
@@ -359,12 +359,12 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         return video_layout
 
     def __generate_multi_channel_video_box(self):
-        if self.ui_config.merge_center_grid:
-            return self.__generate_video_grid_layout_for_merge_center_grid()
+        if self.ui_config.merge_central_grid:
+            return self.__generate_video_grid_layout_for_merge_central_grid()
         else:
             return self.__setup_video_grid_layout()
 
-    def __generate_video_grid_layout_for_merge_center_grid(self):
+    def __generate_video_grid_layout_for_merge_central_grid(self):
         video_grid_layout = QGridLayout()
         grid = self.adjusted_video_grid_info
 
