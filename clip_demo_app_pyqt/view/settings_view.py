@@ -38,8 +38,9 @@ class SettingsView(QMainWindow):
         from clip_demo_app_pyqt.data.input_data import InputData
         from clip_demo_app_pyqt.model.sentence_model import Sentence
 
-        self.video_path_lists = InputData.video_path_lists
-        self.sentence_list: list[Sentence] = InputData.sentence_list
+        self.input_data = InputData()
+        self.video_path_lists = self.input_data.get_video_path_lists()
+        self.sentence_list: list[Sentence] = self.input_data.get_sentence_list()
 
         self.success_cb = success_cb
 
