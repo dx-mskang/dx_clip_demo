@@ -20,5 +20,5 @@ The Clip Demo App calculates the similarity score between the image embedding re
     - Detects similarities between 2 to 16-channel videos (images) and registered sentences (text) and displays alarms accordingly.
 - Realtime (Camera Mode) Demo
     - Supports real-time camera input for video.
-- Input Terminal (Prompt Mode) Demo
+- Settings (Prompt Mode) Demo
     - Supports the addition and deletion of real-time sentence inputs.

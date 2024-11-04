@@ -81,7 +81,7 @@ class SettingsView(QMainWindow):
         layout.addWidget(self.show_score_checkbox)
 
         # Settings Mode checkbox
-        self.settings_mode_checkbox = QCheckBox("Settings Mode", self)
+        self.settings_mode_checkbox = QCheckBox("Settings(prompt) Mode", self)
         self.settings_mode_checkbox.setChecked(self.settings_mode)
         layout.addWidget(self.settings_mode_checkbox)
 
