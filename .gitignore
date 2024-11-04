@@ -12,3 +12,5 @@ __pycache__/
 **/docs/**/*.pdf
 **/docs/**/*.zip
 **/docs/docs_web/
+
+clip_demo_app_pyqt/data/data.json

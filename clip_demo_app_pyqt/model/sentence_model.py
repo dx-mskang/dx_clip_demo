@@ -1,6 +1,7 @@
 import copy
 import threading
 
+from clip_demo_app_pyqt.data.input_data import InputData
 from clip_demo_app_pyqt.lib.clip.dx_text_encoder import TextVectorUtil
 from clip_demo_app_pyqt.model.model import Model
 
@@ -17,33 +18,53 @@ class Sentence:
         self.__score_max = score_max
         self.__score_threshold = score_threshold
 
-    def getText(self) -> str:
+    def get_text(self) -> str:
         return self.__text
 
-    def getScoreMin(self) -> float:
+    def get_score_min(self) -> float:
         return self.__score_min
 
-    def getScoreMax(self) -> float:
+    def get_score_max(self) -> float:
         return self.__score_max
 
-    def getScoreThreshold(self) -> float:
+    def get_score_threshold(self) -> float:
         return self.__score_threshold
 
-    def setDisabled(self, val: bool):
+    def set_disabled(self, val: bool):
         self.__disabled = val
 
-    def getDisabled(self):
+    def get_disabled(self):
         return self.__disabled
+
+    def to_dict(self):
+        return {
+            "text": self.__text,
+            "min_score": self.__score_min,
+            "max_score": self.__score_max,
+            "threshold": self.__score_threshold,
+            "disabled": self.__disabled
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        instance = cls(
+            text=data["text"],
+            score_min=data["min_score"],
+            score_max=data["max_score"],
+            score_threshold=data["threshold"]
+        )
+        instance.set_disabled(data.get("disabled", False))
+        return instance
 
 
 class SentenceOutput:
     def __init__(self, sentence: Sentence, score: float):
         self.__sentence = sentence
         self.__score = score
-        self.__percentage = int(sentence.getScoreMin() / sentence.getScoreMax() * score)
+        self.__percentage = int(sentence.get_score_min() / sentence.get_score_max() * score)
 
-        score_min = sentence.getScoreMin()
-        score_max = sentence.getScoreMax()
+        score_min = sentence.get_score_min()
+        score_max = sentence.get_score_max()
 
         if score < score_min:
             percentage = 0
@@ -54,13 +75,13 @@ class SentenceOutput:
 
         self.__percentage = percentage
 
-    def getSentenceText(self) -> str:
-        return self.__sentence.getText()
+    def get_sentence_text(self) -> str:
+        return self.__sentence.get_text()
 
-    def getScore(self) -> float:
+    def get_score(self) -> float:
         return self.__score
 
-    def getPercentage(self) -> int:
+    def get_percentage(self) -> int:
         return self.__percentage
 
 
@@ -69,9 +90,9 @@ class SentenceModel(Model):
         Model.__init__(self)
         self.__sentence_lock = threading.Lock()
 
-        self.__sentence_list = sentence_list
-        self.__sentence_vector_list = TextVectorUtil.get_text_vector_list(
-            [sentence.getText() for sentence in self.__sentence_list])
+        self.__sentence_list: list[Sentence] = sentence_list
+        self.__sentence_vector_list: list = TextVectorUtil.get_text_vector_list(
+            [sentence.get_text() for sentence in self.__sentence_list])
 
     def insert_sentence(self, text_input,
                         score_min,
@@ -84,28 +105,41 @@ class SentenceModel(Model):
                             index=0):
         with self.__sentence_lock:
             self.__sentence_list.insert(index, sentence)
-            self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(sentence.getText()))
+            self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(sentence.get_text()))
+            InputData().save_data()
 
     def pop_sentence(self, index=None) -> Sentence:
         with self.__sentence_lock:
             if index is None:
                 index = -1
             self.__sentence_vector_list.pop(index)
-            return self.__sentence_list.pop(index)
+            sentence = self.__sentence_list.pop(index)
+            InputData().save_data()
+            return sentence
 
     def toggle_sentence(self, index):
         sentence = self.pop_sentence(index)
-        sentence.setDisabled(not sentence.getDisabled())
+        sentence.set_disabled(not sentence.get_disabled())
+        InputData().save_data()
         self.insert_sentence_obj(sentence, index)
 
     def update_sentence(self, text_input, score_min, score_max, score_threshold, index):
         self.pop_sentence(index)
         self.insert_sentence(text_input, score_min, score_max, score_threshold, index)
 
+    def reset_sentence(self):
+        with self.__sentence_lock:
+            input_data = InputData()
+            input_data.load_data(force=True)
+            self.__sentence_list: list[Sentence] = input_data.get_sentence_list()
+            self.__sentence_vector_list: list = TextVectorUtil.get_text_vector_list(
+                [sentence.get_text() for sentence in self.__sentence_list])
+
     def clear_sentence(self):
         with self.__sentence_lock:
             self.__sentence_list.clear()
             self.__sentence_vector_list.clear()
+            InputData().save_data()
 
     def get_sentence_list(self) -> list:
         with self.__sentence_lock:

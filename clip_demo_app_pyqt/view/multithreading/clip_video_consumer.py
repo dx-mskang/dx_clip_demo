@@ -168,7 +168,7 @@ class ClipVideoConsumer(VideoConsumer):
                 score = logit_list[t]
                 sentence = sentence_list[t]
 
-                if score > sentence.getScoreThreshold() and sentence.getDisabled() is False:
+                if score > sentence.get_score_threshold() and sentence.get_disabled() is False:
                     sentence_output_list.append(SentenceOutput(sentence, score))
             except Exception as ex:
                 # traceback.print_exc()
@@ -179,9 +179,9 @@ class ClipVideoConsumer(VideoConsumer):
         for sentence_output in sentence_output_list:
             self.__update_sentence_output_signal.emit(
                 channel_idx,
-                sentence_output.getSentenceText(),
-                sentence_output.getPercentage(),
-                sentence_output.getScore())
+                sentence_output.get_sentence_text(),
+                sentence_output.get_percentage(),
+                sentence_output.get_score())
 
         self.__last_update_time_text = current_update_time_text
 
