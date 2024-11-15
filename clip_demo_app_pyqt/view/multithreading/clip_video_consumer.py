@@ -26,7 +26,7 @@ class ClipVideoConsumer(VideoConsumer):
     def __init__(self, channel_idx: int, number_of_alarms: list,
                  video_source_changed_signal: pyqtSignal,
                  sentence_list_update_signal: pyqtSignal, num_of_inference_per_sec: int,
-                 max_np_array_similarity_queue: int, consumer_video_fps_sync_mode: bool, ctx: ClipViewModel):
+                 max_np_array_similarity_queue: int, consumer_video_fps_sync_mode: bool, inference_engine_async_mode:bool, ctx: ClipViewModel):
         super().__init__(channel_idx, video_source_changed_signal, consumer_video_fps_sync_mode)
         self.ctx = ctx
         self.__number_of_alarms = number_of_alarms
@@ -47,6 +47,12 @@ class ClipVideoConsumer(VideoConsumer):
         self.video_mask = torch.ones(1, 1)
 
         sentence_list_update_signal.connect(self.__init_np_array_similarity)
+        
+        self.inference_engine_async_mode = inference_engine_async_mode
+        
+        if self.inference_engine_async_mode:
+            self.__dxnn_video_encoder.register_callback(self.pp_callback)
+            self.video_pred = np.array((1, 512), dtype=np.float32) * 0.0
 
     @overrides()
     def _process_impl(self, channel_idx, frame, fps):
@@ -76,7 +82,10 @@ class ClipVideoConsumer(VideoConsumer):
 
         dxnn_s = time.perf_counter_ns()
         input_data = self.image_transform(Image.fromarray(frame).convert("RGB"))
-        video_pred = self.__dxnn_video_encoder.run(input_data)[0]
+        if self.inference_engine_async_mode:
+            self.__dxnn_video_encoder.async_run(input_data, self)
+        else:
+            self.video_pred = self.__dxnn_video_encoder.run(input_data)[0]
         dxnn_e = time.perf_counter_ns()
 
         sentence_vector_list = self.ctx.get_sentence_vector_list()
@@ -86,7 +95,7 @@ class ClipVideoConsumer(VideoConsumer):
 
         for text_index in range(sentence_vector_count):
             try:
-                similarity = self.__loose_similarity(sentence_vector_list[text_index], video_pred, self.video_mask)
+                similarity = self.__loose_similarity(sentence_vector_list[text_index], torch.Tensor(self.video_pred), self.video_mask)
             except Exception as ex:
                 logging.debug(ex)
                 return
@@ -126,6 +135,13 @@ class ClipVideoConsumer(VideoConsumer):
         if channel_idx == 0:
             self._update_overall_fps(channel_idx)
 
+    @staticmethod
+    def pp_callback(outputs, arg):
+        x = outputs[0]
+        x = x[:, 0]
+        arg.value.video_pred = x / np.linalg.norm(x, axis=-1, keepdims=True)
+        return 0
+    
     def get_update_sentence_output_signal(self):
         return self.__update_sentence_output_signal
 

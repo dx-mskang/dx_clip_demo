@@ -33,6 +33,7 @@ class SettingsView(QMainWindow):
         self.camera_mode = args.camera_mode
         self.merge_central_grid = args.merge_central_grid
         self.video_fps_sync_mode = args.video_fps_sync_mode
+        self.inference_engine_async_mode = args.inference_engine_async_mode
 
         # input data setting
         from clip_demo_app_pyqt.data.input_data import InputData
@@ -101,6 +102,11 @@ class SettingsView(QMainWindow):
         self.video_fps_sync_mode_checkbox = QCheckBox("Video FPS Sync Mode", self)
         self.video_fps_sync_mode_checkbox.setChecked(self.video_fps_sync_mode)
         layout.addWidget(self.video_fps_sync_mode_checkbox)
+        
+        # Inference Engine RunAsync Mode checkbox
+        self.inference_engine_async_mode_checkbox = QCheckBox("Inference RunAsync Mode", self)
+        self.inference_engine_async_mode_checkbox.setChecked(self.inference_engine_async_mode)
+        layout.addWidget(self.inference_engine_async_mode_checkbox)
 
         # Fullscreen Mode checkbox
         self.fullscreen_mode_checkbox = QCheckBox("Fullscreen Mode", self)
@@ -143,6 +149,7 @@ class SettingsView(QMainWindow):
         self.ui_config.fullscreen_mode = self.fullscreen_mode_checkbox.isChecked()
         self.ui_config.dark_theme = self.dark_theme_checkbox.isChecked()
         self.ui_config.merge_central_grid = self.merge_central_grid_checkbox.isChecked()
+        self.ui_config.inference_engine_async_mode = self.inference_engine_async_mode_checkbox.isChecked()
 
         # adjust video_grid_info, video_path_lists and num_channels
         if self.ui_config.merge_central_grid:

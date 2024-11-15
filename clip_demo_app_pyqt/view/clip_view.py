@@ -266,6 +266,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                                                self.ui_config.consumer_num_of_inference_per_sec,
                                                self.ui_config.consumer_max_np_array_similarity_queue,
                                                self.ui_config.consumer_video_fps_sync_mode,
+                                               self.ui_config.inference_engine_async_mode,
                                                self.__view_model)
 
             video_consumer.get_update_each_fps_signal().connect(self.update_each_fps)

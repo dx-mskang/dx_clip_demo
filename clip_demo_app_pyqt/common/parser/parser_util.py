@@ -22,6 +22,9 @@ class ParserUtil:
         parser.add_argument("--merge_central_grid", type=int, default=0,
                             help="Merge the Centeral Grid Setting (off: 0, on: 1)")
         parser.add_argument("--video_fps_sync_mode", type=int, default=0, help="Video FPS Sync Mode Setting (off: 0, on: 1)")
+        
+        # DXNN Inference Engine Configuration Argument
+        parser.add_argument("--inference_engine_async_mode", type=int, default=1, help="Inference Engine RunAsync Mode (off: 0, on: 1)")
 
         # Model Path Arguments
         parser.add_argument("--token_embedder_onnx", type=str,

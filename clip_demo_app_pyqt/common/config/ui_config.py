@@ -22,7 +22,7 @@ class UIConfig:
     sentence_list_scroll_area_min_width = 450
 
     # video processing settings
-    consumer_queue_size = 1
+    consumer_queue_size = 10
     consumer_num_of_inference_per_sec = 3
     consumer_max_np_array_similarity_queue = 5
     producer_video_fps_sync_mode = False
@@ -30,6 +30,9 @@ class UIConfig:
     producer_video_frame_skip_interval = 0  # 1st to 4th frames are processed, and the 5th frame is skipped when set to 5.
     max_producer_worker = 16
     max_consumer_worker = 4
+    
+    # Inference Engine RunAsync setting
+    inference_engine_async_mode = True
 
     # Add Sentence Dialog
     sentence_input_min_width = 400

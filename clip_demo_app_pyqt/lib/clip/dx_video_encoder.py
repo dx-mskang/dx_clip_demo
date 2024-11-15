@@ -8,6 +8,17 @@ class DXVideoEncoder:
     def __init__(self, model_path: str):
         self.ie = InferenceEngine(model_path)
 
+    def register_callback(self, func):
+        self.ie.register_callback(func)
+    
+    def async_run(self, x, args):
+        x = x.numpy()
+        x = self.preprocess_numpy(x)
+        x = np.ascontiguousarray(x)
+        request_id = self.ie.run_async(x, args)
+        return request_id
+    
+    
     def run(self, x):
         x = x.numpy()
         x = self.preprocess_numpy(x)
