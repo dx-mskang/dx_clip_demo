@@ -72,24 +72,29 @@ pip install -r ./assets/pia_python_package/requirements.txt
 ```
 
 ##### 2-2. Install PIA Space AI packages
-```bash
-pip install ./assets/pia_python_package/pia-1.3.1obf-py3-none-any.whl
-pip install ./assets/pia_python_package/sub_clip4clip-1.2.3obf-py3-none-any.whl
-```
+
+- for `linux amd64`
+  ```bash
+  pip install ./assets/pia_python_package/pia-1.3.1obf-py3-none-any.whl
+  pip install ./assets/pia_python_package/sub_clip4clip-1.2.3obf-py3-none-any.whl
+  ```
+
 
 (P.S) If you encounter an error installing pia-1.3.1obf-py3-none-any.whl due to a 'decord' dependency issue (e.g., on OPi5+), refer to the solutions below:
-  - <Solution 1: Manual build and install> 
+- for `OPi5+ or arm64`
+  - (Solution 1: Install Pre-built whl file)
+    - For OPi5+, run:
+      ```bash
+      pip install ./install_dep/opi5plus/decord-0.6.0-cp311-cp311-linux_aarch64.whl
+      ```
+  - <Solution 2: Manual build and install> 
     - You can manually build and install 'decord' by following the instructions from the official guide at `https://github.com/dmlc/decord?tab=readme-ov-file#install-from-source`.  
     - Alternatively, you can refer to the provided script `./install_dep/opi5plus/manual_build_and_install_decord_python_dep_package_opi5plus.sh` :
       ```bash
       cd ./install_dep/opi5plus
       ./manual_build_and_install_decord_python_dep_package_opi5plus.sh
       ```
-  - (Solution 2: Install Pre-built whl file)
-    - For OPi5+, run:
-      ```bash
-      pip install ./install_dep/opi5plus/decord-0.6.0-cp311-cp311-linux_aarch64.whl
-      ```
+
 
 #### 3. Install `onnxruntime`
 Install `onnxruntime` using the following command:
@@ -117,10 +122,21 @@ source ./pia-package-executor-pyqt/bin/activate
 ```
 
 #### 2. Install dx_engine(DX-Runtime Python pacakge)
+- (Solution 1: Install Pre-built whl file)
+  - for `linux amd64`
+    ```bash
+    pip uninstall dx_engine
+    pip install ./install_dep/linux-amd64/dx_engine-0.0.1-py3-none-any.whl
+    ```
+  - for `OPi5+ or arm64`
+    ```
+    pip uninstall dx_engine
+    pip install ./install_dep/opi5plus/dx_engine-0.0.1-py3-none-any.whl
+    ```
 
-- (Solution 1: Manual build and install) 
+- (Solution 2: Manual build and install) 
   ```bash
-  cd /your/dx_rt/source/path
+  cd /your/dx_rt/source/path  # Verify your DX-RT source path and update it to the correct one!
   ./build.sh
   cd python_package
   pip uninstall dx_engine
@@ -129,15 +145,7 @@ source ./pia-package-executor-pyqt/bin/activate
 
   Make sure there is a file *_pydxrt.cpython-311-x86_64-linux-gnu.so* under folder */your/dx_rt/source/path/python_package/src/dx_engine/capi*    
 
-- (Solution 2: Install Pre-built whl file)
-  - for `linux amd64` 
-    ```bash
-    pip install ./install_dep/linux-amd64/dx_engine-0.0.1-py3-none-any.whl
-    ```
-  - for `OPi5+ or arm64` 
-    ```
-    pip install ./install_dep/opi5plus/dx_engine-0.0.1-py3-none-any.whl
-    ```
+
 
 #### Example for using `dx_engine`
 ```python
