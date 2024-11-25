@@ -49,9 +49,9 @@ assets
 │   ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
 │   └── visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
 └── pia_python_package
-    ├── pia-1.3.1obf-py3-none-any.whl
+    ├── pia-1.3.1+obf-py3-none-any.whl
     ├── requirements.txt
-    └── sub_clip4clip-1.2.3obf-py3-none-any.whl
+    └── sub_clip4clip-1.2.3+obf-py3-none-any.whl
 ```
 
 ---
@@ -80,11 +80,11 @@ pip install -r ./assets/pia_python_package/requirements.txt
 
 ##### 2-2. Install PIA Space AI packages
 ```bash
-pip install ./assets/pia_python_package/pia-1.3.1obf-py3-none-any.whl
-pip install ./assets/pia_python_package/sub_clip4clip-1.2.3obf-py3-none-any.whl
+pip install ./assets/pia_python_package/pia-1.3.1+obf-py3-none-any.whl
+pip install ./assets/pia_python_package/sub_clip4clip-1.2.3+obf-py3-none-any.whl
 ```
 
-(P.S) If you encounter an error installing pia-1.3.1obf-py3-none-any.whl due to a 'decord' dependency issue (e.g., on OPi5+), refer to the solutions below:
+(P.S) If you encounter an error installing pia-1.3.1+obf-py3-none-any.whl due to a 'decord' dependency issue (e.g., on OPi5+), refer to the solutions below:
   - <Solution 1: Manual build and install> 
     - You can manually build and install 'decord' by following the instructions from the official guide at `https://github.com/dmlc/decord?tab=readme-ov-file#install-from-source`.  
     - Alternatively, you can refer to the provided script `./install_dep/opi5plus/manual_build_and_install_decord_python_dep_package_opi5plus.sh` :

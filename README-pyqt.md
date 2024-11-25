@@ -42,9 +42,9 @@ assets
 │   ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
 │   └── visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
 └── pia_python_package
-    ├── pia-1.3.1obf-py3-none-any.whl
+    ├── pia-1.3.1+obf-py3-none-any.whl
     ├── requirements.txt
-    └── sub_clip4clip-1.2.3obf-py3-none-any.whl
+    └── sub_clip4clip-1.2.3+obf-py3-none-any.whl
 ```
 
 ---
@@ -75,12 +75,12 @@ pip install -r ./assets/pia_python_package/requirements.txt
 
 - for `linux amd64`
   ```bash
-  pip install ./assets/pia_python_package/pia-1.3.1obf-py3-none-any.whl
-  pip install ./assets/pia_python_package/sub_clip4clip-1.2.3obf-py3-none-any.whl
+  pip install ./assets/pia_python_package/pia-1.3.1+obf-py3-none-any.whl
+  pip install ./assets/pia_python_package/sub_clip4clip-1.2.3+obf-py3-none-any.whl
   ```
 
 
-(P.S) If you encounter an error installing pia-1.3.1obf-py3-none-any.whl due to a 'decord' dependency issue (e.g., on OPi5+), refer to the solutions below:
+(P.S) If you encounter an error installing pia-1.3.1+obf-py3-none-any.whl due to a 'decord' dependency issue (e.g., on OPi5+), refer to the solutions below:
 - for `OPi5+ or arm64`
   - (Solution 1: Install Pre-built whl file)
     - For OPi5+, run:
