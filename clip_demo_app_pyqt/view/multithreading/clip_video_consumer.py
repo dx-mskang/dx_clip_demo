@@ -128,7 +128,7 @@ class ClipVideoConsumer(VideoConsumer):
         np_array_similarity_list: list = self.__np_array_similarity_queue.peek()
         for np_array_similarity in np_array_similarity_list:
             sum_np_array_similarity += np_array_similarity
-        mean_np_array_similarity = sum_np_array_similarity / len(np_array_similarity_list)
+        mean_np_array_similarity = 0 if len(np_array_similarity_list) == 0 else sum_np_array_similarity / len(np_array_similarity_list)
 
         self.__update_argmax_text(sentence_list, mean_np_array_similarity, channel_idx)
 
