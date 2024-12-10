@@ -51,7 +51,7 @@ class ClipVideoConsumer(VideoConsumer):
         self.inference_engine_async_mode = inference_engine_async_mode
         
         if self.inference_engine_async_mode:
-            self.__dxnn_video_encoder.register_callback(self.pp_callback)
+            # self.__dxnn_video_encoder.register_callback(self.pp_callback)
             self.video_pred = np.array((1, 512), dtype=np.float32) * 0.0
 
     @overrides()
@@ -74,7 +74,7 @@ class ClipVideoConsumer(VideoConsumer):
             self.__frame_count = 0
 
         # for prevent UI freeze
-        time.sleep(0.3)
+        time.sleep(0.01)
 
         s = time.perf_counter_ns()
 
@@ -83,9 +83,10 @@ class ClipVideoConsumer(VideoConsumer):
         dxnn_s = time.perf_counter_ns()
         input_data = self.image_transform(Image.fromarray(frame).convert("RGB"))
         if self.inference_engine_async_mode:
-            self.__dxnn_video_encoder.async_run(input_data, self)
+            request_id = self.__dxnn_video_encoder.run_async(input_data, self)
+            self.video_pred = self.__dxnn_video_encoder.wait(request_id)
         else:
-            self.video_pred = self.__dxnn_video_encoder.run(input_data)[0]
+            self.video_pred = self.__dxnn_video_encoder.run(input_data)
         dxnn_e = time.perf_counter_ns()
 
         sentence_vector_list = self.ctx.get_sentence_vector_list()
@@ -135,12 +136,12 @@ class ClipVideoConsumer(VideoConsumer):
         if channel_idx == 0:
             self._update_overall_fps(channel_idx)
 
-    @staticmethod
-    def pp_callback(outputs, arg):
-        x = outputs[0]
-        x = x[:, 0]
-        arg.value.video_pred = x / np.linalg.norm(x, axis=-1, keepdims=True)
-        return 0
+    # @staticmethod
+    # def pp_callback(outputs, arg):
+    #     x = outputs[0]
+    #     x = x[:, 0]
+    #     arg.value.video_pred = x / np.linalg.norm(x, axis=-1, keepdims=True)
+    #     return 0
     
     def get_update_sentence_output_signal(self):
         return self.__update_sentence_output_signal
