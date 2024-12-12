@@ -7,13 +7,14 @@ from typing import List
 
 import qdarkstyle
 from PyQt5.QtCore import Qt, QObject, QEvent
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QFont, QColor
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
-    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox
+    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox, QComboBox
 from overrides import overrides
 from pyqttoast import ToastPreset, ToastPosition, Toast
 
 from clip_demo_app_pyqt.common.base import CombinedMeta, Base
+from clip_demo_app_pyqt.common.constants import COLOR_DICT, POSITION_DICT, POSITION_DICT_REVERSE, COLOR_DICT_REVERSE
 from clip_demo_app_pyqt.data.input_data import InputData
 from clip_demo_app_pyqt.model.sentence_model import Sentence
 from clip_demo_app_pyqt.view.settings_view import MergedVideoGridInfo
@@ -22,6 +23,20 @@ from clip_demo_app_pyqt.common.config.ui_config import UIHelper, UIConfig
 from clip_demo_app_pyqt.view.multithreading.clip_video_consumer import ClipVideoConsumer
 from clip_demo_app_pyqt.view.multithreading.video_producer import VideoProducer
 from clip_demo_app_pyqt.view.multithreading.video_worker import VideoWorker
+
+
+class LoadingOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 128);")
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+        self.label = QLabel("Loading...", self)
+        self.label.setStyleSheet("color: white; font-size: 16px;")
+
+    def resizeEvent(self, event):
+        self.setGeometry(0, 0, self.parent().width(), self.parent().height())
+        self.label.move(self.width() // 2 - self.label.width() // 2, self.height() // 2 - self.label.height() // 2)
+        super().resizeEvent(event)
 
 
 class AddSentenceDialog(QDialog):
@@ -69,12 +84,31 @@ class AddSentenceDialog(QDialog):
         score_settings_box.addWidget(score_threshold_label)
         score_settings_box.addWidget(self.score_threshold_input)
 
+        alarm_settings_box = QHBoxLayout()
+
+        alarm_label = QLabel("[Alarm]", self)
+        self.alarm_checkbox = QCheckBox("On", self)
+        self.alarm_title_input = QLineEdit(self)
+        self.alarm_title_input.setMinimumWidth(parent.ui_config.alarm_title_input_min_width)
+        self.alarm_title_input.setPlaceholderText("Alarm Title")
+        self.alarm_color_combobox = QComboBox(self)
+        self.alarm_color_combobox.addItems(COLOR_DICT.keys())
+        self.alarm_position_combobox = QComboBox(self)
+        self.alarm_position_combobox.addItems(POSITION_DICT.keys())
+
+        alarm_settings_box.addWidget(self.alarm_checkbox)
+        alarm_settings_box.addWidget(self.alarm_title_input)
+        alarm_settings_box.addWidget(self.alarm_color_combobox)
+        alarm_settings_box.addWidget(self.alarm_position_combobox)
+
         # Layout configuration
         settings_box = QVBoxLayout()
         settings_box.addWidget(sentence_input_label)
         settings_box.addWidget(self.sentence_input)
         settings_box.addWidget(score_settings_label)
         settings_box.addLayout(score_settings_box)
+        settings_box.addWidget(alarm_label)
+        settings_box.addLayout(alarm_settings_box)
 
         # Add Cancel and Submit buttons
         button_box = QHBoxLayout()
@@ -115,9 +149,22 @@ class AddSentenceDialog(QDialog):
     def get_score_threshold_input_value(self):
         return self.score_threshold_input.value()
 
+    def get_alarm_checked(self) -> bool:
+        return self.alarm_checkbox.isChecked()
+
+    def get_alarm_title_input_text(self) -> str:
+        return self.alarm_title_input.text()
+
+    def get_alarm_position(self) -> int:
+        return POSITION_DICT[self.alarm_position_combobox.currentText()]
+
+    def get_alarm_color(self) -> str:
+        return COLOR_DICT[self.alarm_color_combobox.currentText()]
+
 
 class ModifySentenceDialog(AddSentenceDialog):
-    def __init__(self, sentence, score_min, score_max, score_threshold, parent=None):
+    def __init__(self, sentence, score_min, score_max, score_threshold,
+                 alarm, alarm_title, alarm_position, alarm_color, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Modify Sentence")
 
@@ -126,6 +173,11 @@ class ModifySentenceDialog(AddSentenceDialog):
         self.score_min_input.setValue(score_min)
         self.score_max_input.setValue(score_max)
         self.score_threshold_input.setValue(score_threshold)
+
+        self.alarm_checkbox.setChecked(alarm)
+        self.alarm_title_input.setText(alarm_title)
+        self.alarm_position_combobox.setCurrentText(POSITION_DICT_REVERSE[alarm_position])
+        self.alarm_color_combobox.setCurrentText(COLOR_DICT_REVERSE[alarm_color])
 
 
 class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
@@ -136,6 +188,11 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.root_layout = None
         self.prev_app_layout_container = None
         self.prev_app_layout = None
+        self.is_opened_dialog = False
+
+        self.loading_overlay = LoadingOverlay(self)
+        self.loading_overlay.hide()
+
         self.__fps_lock = threading.Lock()
         self.__view_model = view_model
 
@@ -230,6 +287,14 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         if self.ui_config.fullscreen_mode:
             self.showFullScreen()
+
+    def show_loading(self):
+        if self.loading_overlay:
+            self.loading_overlay.show()
+
+    def hide_loading(self):
+        if self.loading_overlay:
+            self.loading_overlay.hide()
 
     @overrides()
     def resizeEvent(self, event):
@@ -605,7 +670,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             elif item.layout() is not None:
                 self.clear_layout(item.layout())
 
-    def update_sentence_output(self, idx: int, text: str, progress: int, score: float):
+    def update_sentence_output(self, idx: int, text: str, progress: int, score: float,
+                               alarm: bool, alarm_title: str, alarm_position: int, alarm_color: str):
         prefix_str = ""
         if self.ui_config.show_percent:
             prefix_str += "[" + str(progress) + "%]"
@@ -651,13 +717,27 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
 
-    def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING, position=ToastPosition.CENTER):
+        if alarm and not self.is_opened_dialog and Toast.getQueuedCount() <= 9:
+            self.show_toast(prefix_str + text, title=alarm_title, duration=2000, preset=ToastPreset.WARNING,
+                            position=ToastPosition(alarm_position), color=alarm_color,
+                            font_size=self.ui_config.sentence_alarm_font_size)
+
+    def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING,
+                   position=ToastPosition.CENTER, color="#E8B849", font_size=9):
+        Toast.setMaximumOnScreen(3)
         toast = Toast(self)
         toast.setDuration(duration)
         toast.setTitle(title)
-        toast.setText(text)
+        toast.setText(text + "          ")
         toast.applyPreset(preset)
         Toast.setPosition(position)
+
+        # should be called after applyPreset()
+        toast.setTitleFont(QFont('Arial', font_size, QFont.Weight.Bold))
+        toast.setTextFont(QFont('Arial', font_size))
+        toast.setIconColor(QColor(color))
+        toast.setDurationBarColor(QColor(color))
+
         toast.show()
 
     @staticmethod
@@ -666,12 +746,22 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
     def open_add_sentence_dialog(self):
         dialog = AddSentenceDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
+        self.is_opened_dialog = True
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
             sentence = dialog.get_sentence_input_text()
             score_min = self.__round_down_float(dialog.get_score_min_input_value())
             score_max = self.__round_down_float(dialog.get_score_max_input_value())
             score_threshold = self.__round_down_float(dialog.get_score_threshold_input_value())
-            self.add_sentence(sentence, score_min, score_max, score_threshold)
+            alarm = dialog.get_alarm_checked()
+            alarm_title = dialog.get_alarm_title_input_text()
+            alarm_position = dialog.get_alarm_position()
+            alarm_color = dialog.get_alarm_color()
+            self.add_sentence(sentence, score_min, score_max, score_threshold,
+                              alarm, alarm_title, alarm_position, alarm_color)
+            self.is_opened_dialog = False
+        elif result == QDialog.Rejected:
+            self.is_opened_dialog = False
 
     def open_modify_sentence_dialog(self, index):
         # 현재 문장 정보를 가져와 ModifySentenceDialog 열기
@@ -679,14 +769,30 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         score_min = sentence.get_score_min()
         score_max = sentence.get_score_max()
         score_threshold = sentence.get_score_threshold()
+        alarm = sentence.get_alarm()
+        alarm_title = sentence.get_alarm_title()
+        alarm_position = sentence.get_alarm_info().getPosition()
+        alarm_color = sentence.get_alarm_info().getColor()
 
-        dialog = ModifySentenceDialog(sentence, score_min, score_max, score_threshold, self)
-        if dialog.exec_() == QDialog.Accepted:
+        dialog = ModifySentenceDialog(sentence, score_min, score_max, score_threshold,
+                                      alarm, alarm_title, alarm_position, alarm_color, self)
+        self.is_opened_dialog = True
+
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
             updated_sentence = dialog.get_sentence_input_text()
             updated_min = self.__round_down_float(dialog.get_score_min_input_value())
             updated_max = self.__round_down_float(dialog.get_score_max_input_value())
             updated_threshold = self.__round_down_float(dialog.get_score_threshold_input_value())
-            self.modify_sentence(updated_sentence, updated_min, updated_max, updated_threshold, index)
+            updated_alarm = dialog.get_alarm_checked()
+            updated_alarm_title = dialog.get_alarm_title_input_text()
+            updated_alarm_position = dialog.get_alarm_position()
+            updated_alarm_color = dialog.get_alarm_color()
+            self.modify_sentence(updated_sentence, updated_min, updated_max, updated_threshold,
+                                 updated_alarm, updated_alarm_title, updated_alarm_position, updated_alarm_color, index)
+            self.is_opened_dialog = False
+        elif result == QDialog.Rejected:
+            self.is_opened_dialog = False
 
     def refresh_sentence_list(self):
         while self.sentence_list_layout.count():
@@ -722,7 +828,15 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             sentence_label = QLabel(sentence.get_text(), self)
             sentence_box.addWidget(sentence_label)
 
+            sentence_alarm_checkbox = QCheckBox("", self)
+            sentence_alarm_checkbox.setChecked(sentence.get_alarm())
+            sentence_alarm_checkbox.clicked.connect(lambda _, i=idx: self.toggle_alarm(i))
+            sentence_alarm_checkbox.setFixedWidth(40)
+            sentence_box.addWidget(sentence_alarm_checkbox)
+
             self.sentence_list_layout.addLayout(sentence_box)
+
+        self.hide_loading()
 
     def clear_layout(self, layout):
         while layout.count():
@@ -732,26 +846,40 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             elif item.layout() is not None:
                 self.clear_layout(item.layout())
 
-    def add_sentence(self, sentence, score_min, score_max, score_threshold):
+    def add_sentence(self, sentence, score_min, score_max, score_threshold,
+                     alarm, alarm_title, alarm_position, alarm_color):
         if len(sentence) == 0:
             self.show_toast("Please enter a sentence and press the Add button.")
             return
 
-        self.__view_model.insert_sentence(sentence, score_min, score_max, score_threshold)
+        self.show_loading()
+        self.__view_model.insert_sentence(sentence, score_min, score_max, score_threshold,
+                                          alarm, alarm_title, alarm_position, alarm_color)
 
     def delete_sentence(self, index):
+        self.show_loading()
         self.__view_model.pop_sentence(index)
 
     def toggle_sentence(self, index):
+        self.show_loading()
         self.__view_model.toggle_sentence(index)
 
-    def modify_sentence(self, sentence, score_min, score_max, score_threshold, index):
-        self.__view_model.update_sentence(sentence, score_min, score_max, score_threshold, index)
+    def toggle_alarm(self, index):
+        self.show_loading()
+        self.__view_model.toggle_alarm(index)
+
+    def modify_sentence(self, sentence, score_min, score_max, score_threshold,
+                        alarm, alarm_title, alarm_position, alarm_color, index):
+        self.show_loading()
+        self.__view_model.update_sentence(sentence, score_min, score_max, score_threshold,
+                                          alarm, alarm_title, alarm_position, alarm_color, index)
 
     def reset_text_list(self):
+        self.show_loading()
         self.__view_model.reset_sentence()
 
     def clear_text_list(self):
+        self.show_loading()
         self.__view_model.clear_sentence()
 
     def update_overall_fps(self):

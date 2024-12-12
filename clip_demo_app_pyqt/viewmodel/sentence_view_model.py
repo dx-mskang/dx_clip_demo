@@ -16,12 +16,16 @@ class SentenceViewModel(ViewModel):
     def get_sentence_list_updated_signal(self):
         return self._sentence_list_updated_signal
 
-    def insert_sentence(self, sentence, score_min, score_max, score_threshold):
-        self.__sentence_model.insert_sentence(sentence, score_min, score_max, score_threshold)
+    def insert_sentence(self, sentence, score_min, score_max, score_threshold,
+                        alarm, alarm_title, alarm_position, alarm_color):
+        self.__sentence_model.insert_sentence(sentence, score_min, score_max, score_threshold,
+                                              alarm, alarm_title, alarm_position, alarm_color)
         self._sentence_list_updated_signal.emit()
 
-    def update_sentence(self, sentence, score_min, score_max, score_threshold, index):
-        self.__sentence_model.update_sentence(sentence, score_min, score_max, score_threshold, index)
+    def update_sentence(self, sentence, score_min, score_max, score_threshold,
+                        alarm, alarm_title, alarm_position, alarm_color, index):
+        self.__sentence_model.update_sentence(sentence, score_min, score_max, score_threshold,
+                                              alarm, alarm_title, alarm_position, alarm_color, index)
         self._sentence_list_updated_signal.emit()
 
     def pop_sentence(self, index=None):
@@ -30,6 +34,10 @@ class SentenceViewModel(ViewModel):
 
     def toggle_sentence(self, index):
         self.__sentence_model.toggle_sentence(index)
+        self._sentence_list_updated_signal.emit()
+
+    def toggle_alarm(self, index):
+        self.__sentence_model.toggle_alarm(index)
         self._sentence_list_updated_signal.emit()
 
     def reset_sentence(self):

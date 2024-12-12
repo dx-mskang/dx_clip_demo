@@ -38,10 +38,14 @@ class UIConfig:
     sentence_input_min_width = 400
     score_settings_single_step = 0.005
     score_settings_decimals = 3
+    alarm_title_input_min_width = 100
 
     # Clip View
     base_video_area_ratio = 0.65
     fullscreen_mode_negative_padding = 400
+
+    # sentence alarm
+    sentence_alarm_font_size = 26
 
 
 class UIHelper:

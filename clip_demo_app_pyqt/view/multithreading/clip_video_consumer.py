@@ -21,7 +21,7 @@ class ClipVideoConsumer(VideoConsumer):
     __dxnn_video_encoder = DXVideoEncoder(ParserUtil.get_args().video_encoder_dxnn)
 
     __clear_sentence_output_signal = pyqtSignal(int)
-    __update_sentence_output_signal = pyqtSignal(int, str, int, float)
+    __update_sentence_output_signal = pyqtSignal(int, str, int, float, bool, str, int, str)
 
     def __init__(self, channel_idx: int, number_of_alarms: list,
                  video_source_changed_signal: pyqtSignal,
@@ -198,7 +198,12 @@ class ClipVideoConsumer(VideoConsumer):
                 channel_idx,
                 sentence_output.get_sentence_text(),
                 sentence_output.get_percentage(),
-                sentence_output.get_score())
+                sentence_output.get_score(),
+                sentence_output.get_alarm(),
+                sentence_output.get_alarm_title(),
+                sentence_output.get_alarm_position(),
+                sentence_output.get_alarm_color()
+            )
 
         self.__last_update_time_text = current_update_time_text
 
