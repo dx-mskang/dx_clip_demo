@@ -9,17 +9,17 @@ class DXVideoEncoder:
         self.ie = InferenceEngine(model_path)
 
     # def register_callback(self, func):
-    #     self.ie.register_callback(func)
+    #     self.ie.RegisterCallBack(func)
     
     def run_async(self, x, args):
         x = x.numpy()
         x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        request_id = self.ie.run_async(x, args)
+        request_id = self.ie.RunAsync(x, args)
         return request_id
 
     def wait(self, request_id):
-        o = self.ie.wait(request_id)[0]
+        o = self.ie.Wait(request_id)[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
@@ -28,7 +28,7 @@ class DXVideoEncoder:
         x = x.numpy()
         x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        o = self.ie.run(x)[0]
+        o = self.ie.Run(x)[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o

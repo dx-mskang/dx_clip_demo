@@ -105,7 +105,7 @@ class DXVideoEncoder():
         x = x.numpy()
         x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        o = self.ie.run(x)[0]
+        o = self.ie.Run(x)[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
