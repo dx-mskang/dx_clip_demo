@@ -12,6 +12,7 @@ class UIConfig:
 
     show_percent = False
     show_score = False
+    alarm_only_on_camera_ch = True
     show_each_fps_label = False
     fullscreen_mode = True
     dark_theme = True

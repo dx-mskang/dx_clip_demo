@@ -248,6 +248,10 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.show_score_button.setCheckable(True)
         self.show_score_button.setChecked(self.ui_config.show_score)
 
+        self.alarm_only_on_camera_ch_button = QPushButton("Alarm only on camera")
+        self.alarm_only_on_camera_ch_button.setCheckable(True)
+        self.alarm_only_on_camera_ch_button.setChecked(self.ui_config.alarm_only_on_camera_ch)
+
         # QPushButton initialization (text add and delete)
         self.add_button = QPushButton("Add", self)
         self.reset_button = QPushButton("Reset", self)
@@ -259,6 +263,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.show_settings_button.clicked.connect(self.__toggle_settings)
         self.show_percentage_button.clicked.connect(self.__toggle_percent)
         self.show_score_button.clicked.connect(self.__toggle_score)
+        self.alarm_only_on_camera_ch_button.clicked.connect(self.__toggle_alram_only_on_camera_ch)
 
         self.add_button.clicked.connect(self.open_add_sentence_dialog)
         self.reset_button.clicked.connect(self.reset_text_list)
@@ -398,6 +403,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         ui_toggle_layout = QHBoxLayout()
         ui_toggle_layout.addWidget(self.show_percentage_button)
         ui_toggle_layout.addWidget(self.show_score_button)
+        ui_toggle_layout.addWidget(self.alarm_only_on_camera_ch_button)
         ui_toggle_box.setLayout(ui_toggle_layout)
         control_box.addWidget(ui_toggle_box)
 
@@ -658,6 +664,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __toggle_score(self):
         self.ui_config.show_score = self.show_score_button.isChecked()
 
+    def __toggle_alram_only_on_camera_ch(self):
+        self.ui_config.alarm_only_on_camera_ch = self.alarm_only_on_camera_ch_button.isChecked()
+
     def update_scaled_video_frame(self, channel_idx: int, qt_img):
         self.video_label_list[channel_idx].setPixmap(QPixmap.fromImage(qt_img))
 
@@ -718,6 +727,10 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
 
         if alarm and not self.is_opened_dialog and Toast.getQueuedCount() <= 9:
+            if self.ui_config.alarm_only_on_camera_ch and is_camera_source is False:
+                # skip to show alarm when video channel is not camera source
+                return
+
             self.show_toast(prefix_str + text, title=alarm_title, duration=2000, preset=ToastPreset.WARNING,
                             position=ToastPosition(alarm_position), color=alarm_color,
                             font_size=self.ui_config.sentence_alarm_font_size)
