@@ -17,15 +17,21 @@ class SentenceViewModel(ViewModel):
         return self._sentence_list_updated_signal
 
     def insert_sentence(self, sentence, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color):
+                        alarm, alarm_title, alarm_position, alarm_color,
+                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position):
         self.__sentence_model.insert_sentence(sentence, score_min, score_max, score_threshold,
-                                              alarm, alarm_title, alarm_position, alarm_color)
+                                              alarm, alarm_title, alarm_position, alarm_color,
+                                              media_alarm, media_alarm_title, media_alarm_media_path,
+                                              media_alarm_position)
         self._sentence_list_updated_signal.emit()
 
     def update_sentence(self, sentence, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color, index):
+                        alarm, alarm_title, alarm_position, alarm_color,
+                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index):
         self.__sentence_model.update_sentence(sentence, score_min, score_max, score_threshold,
-                                              alarm, alarm_title, alarm_position, alarm_color, index)
+                                              alarm, alarm_title, alarm_position, alarm_color,
+                                              media_alarm, media_alarm_title, media_alarm_media_path,
+                                              media_alarm_position, index)
         self._sentence_list_updated_signal.emit()
 
     def pop_sentence(self, index=None):
@@ -38,6 +44,10 @@ class SentenceViewModel(ViewModel):
 
     def toggle_alarm(self, index):
         self.__sentence_model.toggle_alarm(index)
+        self._sentence_list_updated_signal.emit()
+
+    def toggle_media_alarm(self, index):
+        self.__sentence_model.toggle_media_alarm(index)
         self._sentence_list_updated_signal.emit()
 
     def reset_sentence(self):

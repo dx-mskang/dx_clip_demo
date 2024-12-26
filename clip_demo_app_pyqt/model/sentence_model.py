@@ -8,8 +8,49 @@ from clip_demo_app_pyqt.lib.clip.dx_text_encoder import TextVectorUtil
 from clip_demo_app_pyqt.model.model import Model
 
 
+class VideoAlarmInfo:
+    def __init__(self, enabled: bool = False, title: str = "ALARM", video_path: str = "",
+                 position: int = ToastPosition.CENTER.value):
+        self.__enabled = enabled
+        self.__title = title
+        self.__media_path = video_path
+        self.__position = position
+
+    def setAlarm(self, value: bool):
+        self.__enabled = value
+
+    def setTitle(self, title: str):
+        self.__title = title
+
+    def setVideoPath(self, video_path: str):
+        self.__media_path = video_path
+
+    def setPosition(self, position):
+        self.__position = position
+
+    def getAlarm(self) -> bool:
+        return self.__enabled
+
+    def getTitle(self) -> str:
+        return self.__title
+
+    def getMediaPath(self) -> str:
+        return self.__media_path
+
+    def getPosition(self) -> int:
+        return self.__position
+
+    def to_dict(self):
+        return {
+            "enabled": self.__enabled,
+            "title": self.__title,
+            "media_path": self.__media_path,
+            "position": self.__position,
+        }
+
+
 class AlarmInfo:
-    def __init__(self, enabled: bool = False, title: str = "ALARM", position: int = ToastPosition.CENTER.value,
+    def __init__(self, enabled: bool = False, title: str = "ALARM", position: int = ToastPosition.BOTTOM_MIDDLE.value,
                  color: str = "#E8B849"):
         self.__enabled = enabled
         self.__title = title
@@ -52,19 +93,16 @@ class AlarmInfo:
 class Sentence:
     __disabled = False
 
-    def __init__(self, text: str,
-                 score_min: float,
-                 score_max: float,
-                 score_threshold: float,
-                 alarm: bool,
-                 alarm_title: str,
-                 alarm_position: int,
-                 alarm_color: str):
+    def __init__(self, text: str, score_min: float, score_max: float, score_threshold: float,
+                 alarm: bool, alarm_title: str, alarm_position: int, alarm_color: str,
+                 media_alarm: bool, media_alarm_title: str, media_alarm_media_path: str, media_alarm_position: int):
         self.__text = text
         self.__score_min = score_min
         self.__score_max = score_max
         self.__score_threshold = score_threshold
         self.__alarm_info = AlarmInfo(alarm, alarm_title, alarm_position, alarm_color)
+        self.__media_alarm_info = VideoAlarmInfo(media_alarm, media_alarm_title, media_alarm_media_path,
+                                                 media_alarm_position)
 
     def get_text(self) -> str:
         return self.__text
@@ -93,8 +131,26 @@ class Sentence:
     def get_alarm_title(self):
         return self.__alarm_info.getTitle()
 
-    def get_alarm_info(self) -> AlarmInfo:
-        return self.__alarm_info
+    def get_alarm_color(self):
+        return self.__alarm_info.getColor()
+
+    def get_alarm_position(self):
+        return self.__alarm_info.getPosition()
+
+    def set_media_alarm(self, val: bool):
+        self.__media_alarm_info.setAlarm(val)
+
+    def get_media_alarm(self):
+        return self.__media_alarm_info.getAlarm()
+
+    def get_media_alarm_title(self):
+        return self.__media_alarm_info.getTitle()
+
+    def get_media_alarm_media_path(self):
+        return self.__media_alarm_info.getMediaPath()
+
+    def get_media_alarm_position(self):
+        return self.__media_alarm_info.getPosition()
 
     def to_dict(self):
         return {
@@ -103,12 +159,14 @@ class Sentence:
             "max_score": self.__score_max,
             "threshold": self.__score_threshold,
             "disabled": self.__disabled,
-            "alarm_info": self.__alarm_info.to_dict()
+            "alarm_info": self.__alarm_info.to_dict(),
+            "media_alarm_info": self.__media_alarm_info.to_dict()
         }
 
     @classmethod
     def from_dict(cls, data: dict):
         alarm_info_dict = data.get("alarm_info", AlarmInfo().to_dict())
+        media_alarm_info_dict = data.get("media_alarm_info", VideoAlarmInfo().to_dict())
         instance = cls(
             text=data["text"],
             score_min=data["min_score"],
@@ -118,6 +176,10 @@ class Sentence:
             alarm_title=alarm_info_dict["title"],
             alarm_position=alarm_info_dict["position"],
             alarm_color=alarm_info_dict["color"],
+            media_alarm=media_alarm_info_dict["enabled"],
+            media_alarm_title=media_alarm_info_dict["title"],
+            media_alarm_media_path=media_alarm_info_dict["media_path"],
+            media_alarm_position=media_alarm_info_dict["position"],
         )
         instance.set_disabled(data.get("disabled", False))
         return instance
@@ -154,13 +216,25 @@ class SentenceOutput:
         return self.__sentence.get_alarm()
 
     def get_alarm_title(self) -> str:
-        return self.__sentence.get_alarm_info().getTitle()
+        return self.__sentence.get_alarm_title()
 
     def get_alarm_position(self) -> int:
-        return self.__sentence.get_alarm_info().getPosition()
+        return self.__sentence.get_alarm_position()
 
     def get_alarm_color(self) -> str:
-        return self.__sentence.get_alarm_info().getColor()
+        return self.__sentence.get_alarm_color()
+
+    def get_media_alarm(self) -> bool:
+        return self.__sentence.get_media_alarm()
+
+    def get_media_alarm_title(self) -> str:
+        return self.__sentence.get_media_alarm_title()
+
+    def get_media_alarm_media_path(self) -> str:
+        return self.__sentence.get_media_alarm_media_path()
+
+    def get_media_alarm_position(self) -> int:
+        return self.__sentence.get_media_alarm_position()
 
 
 class SentenceModel(Model):
@@ -173,9 +247,11 @@ class SentenceModel(Model):
             [sentence.get_text() for sentence in self.__sentence_list])
 
     def insert_sentence(self, text_input, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color, index=0):
+                        alarm, alarm_title, alarm_position, alarm_color,
+                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index=0):
         self.insert_sentence_obj(
-            Sentence(text_input, score_min, score_max, score_threshold, alarm, alarm_title, alarm_position, alarm_color), index)
+            Sentence(text_input, score_min, score_max, score_threshold, alarm, alarm_title, alarm_position, alarm_color,
+                     media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position), index)
 
     def insert_sentence_obj(self, sentence: Sentence,
                             index=0):
@@ -205,11 +281,19 @@ class SentenceModel(Model):
         InputData().save_data()
         self.insert_sentence_obj(sentence, index)
 
+    def toggle_media_alarm(self, index):
+        sentence = self.pop_sentence(index)
+        sentence.set_media_alarm(not sentence.get_media_alarm())
+        InputData().save_data()
+        self.insert_sentence_obj(sentence, index)
+
     def update_sentence(self, text_input, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color, index):
+                        alarm, alarm_title, alarm_position, alarm_color,
+                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index):
         self.pop_sentence(index)
         self.insert_sentence(text_input, score_min, score_max, score_threshold,
-                             alarm, alarm_title, alarm_position, alarm_color, index)
+                             alarm, alarm_title, alarm_position, alarm_color,
+                             media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index)
 
     def reset_sentence(self):
         with self.__sentence_lock:

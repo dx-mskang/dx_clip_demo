@@ -33,3 +33,6 @@ POSITION_DICT_REVERSE = {
     ToastPosition.TOP_RIGHT.value: ToastPosition.TOP_RIGHT.name,
     ToastPosition.CENTER.value: ToastPosition.CENTER.name
 }
+
+STR_NO_FILE_SELECTED = "No file selected."
+STR_SELECTED_FILE_WILL_BE_DISPLAYED = "The selected file path will be displayed here."

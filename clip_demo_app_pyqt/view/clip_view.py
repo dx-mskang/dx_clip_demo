@@ -1,20 +1,24 @@
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal, ROUND_HALF_UP
+from enum import Enum
 from typing import List
 
 import qdarkstyle
-from PyQt5.QtCore import Qt, QObject, QEvent
-from PyQt5.QtGui import QPixmap, QFont, QColor
+from PyQt5.QtCore import Qt, QObject, QEvent, QUrl, QTimer
+from PyQt5.QtGui import QPixmap, QFont, QColor, QMovie
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
-    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox, QComboBox
+    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox, QComboBox, QFileDialog
 from overrides import overrides
 from pyqttoast import ToastPreset, ToastPosition, Toast
 
 from clip_demo_app_pyqt.common.base import CombinedMeta, Base
-from clip_demo_app_pyqt.common.constants import COLOR_DICT, POSITION_DICT, POSITION_DICT_REVERSE, COLOR_DICT_REVERSE
+from clip_demo_app_pyqt.common.constants import *
 from clip_demo_app_pyqt.data.input_data import InputData
 from clip_demo_app_pyqt.model.sentence_model import Sentence
 from clip_demo_app_pyqt.view.settings_view import MergedVideoGridInfo
@@ -23,6 +27,157 @@ from clip_demo_app_pyqt.common.config.ui_config import UIHelper, UIConfig
 from clip_demo_app_pyqt.view.multithreading.clip_video_consumer import ClipVideoConsumer
 from clip_demo_app_pyqt.view.multithreading.video_producer import VideoProducer
 from clip_demo_app_pyqt.view.multithreading.video_worker import VideoWorker
+
+
+class CustomToastPosition(Enum):
+    MIDDLE_LEFT = 98
+    MIDDLE_RIGHT = 99
+
+
+class VideoToast(QDialog):
+    def __init__(self, title, media_path, position, parent=None):
+        super().__init__(parent)
+        self.__duration = 10000
+        self.__parent = parent
+        self.__media_path = media_path
+        self.__position = position
+
+        self.setWindowTitle(title)
+        self.setFixedSize(360, 360)
+
+        self.__layout = QVBoxLayout(self)
+
+        self.__file_extension = os.path.splitext(media_path)[1].lower()
+        if self.__file_extension == ".gif":
+            self.__init_gif_player(media_path)
+        else:
+            self.__init_video_player(media_path)
+
+        # Timer for hiding the notification after set duration
+        self.__duration_timer = QTimer(self)
+        self.__duration_timer.setSingleShot(True)
+        self.__duration_timer.timeout.connect(self.hide)
+
+        self.__set_dialog_position()
+
+    def __init_gif_player(self, media_path):
+        """
+        Initialize the dialog to use QMovie for GIF playback.
+        """
+        if media_path == "":
+            return
+
+        self.__video_label = QLabel(self)
+        self.__video_label.setAlignment(Qt.AlignCenter)
+        self.__layout.addWidget(self.__video_label)
+
+        self.__movie = QMovie(media_path)
+        self.__video_label.setMovie(self.__movie)
+
+        # Close dialog when GIF playback finishes
+        self.__movie.finished.connect(self.close)
+
+    def __init_video_player(self, media_path):
+        """
+        Initialize the dialog to use QMediaPlayer for video playback.
+        """
+        if media_path == "":
+            return
+
+        self.video_widget = QVideoWidget(self)
+        self.__layout.addWidget(self.video_widget)
+
+        self.__player = QMediaPlayer(self)
+        self.__player.setVideoOutput(self.video_widget)
+        self.__player.setMedia(QMediaContent(QUrl.fromLocalFile(os.path.abspath(media_path))))
+
+        # Close dialog when video playback finishes
+        self.__player.mediaStatusChanged.connect(self.handle_media_status)
+
+    def __set_dialog_position(self):
+        screen = self.screen().availableGeometry()
+        width = screen.width()
+        height = screen.height()
+        dialog_width = self.width()
+        dialog_height = self.height()
+
+        if self.__position == ToastPosition.TOP_RIGHT:
+            x = width - dialog_width
+            y = 0
+        elif self.__position == ToastPosition.TOP_MIDDLE:
+            x = (width - dialog_width) // 2
+            y = 0
+        elif self.__position == ToastPosition.TOP_LEFT:
+            x = 0
+            y = 0
+        elif self.__position == ToastPosition.BOTTOM_RIGHT:
+            x = width - dialog_width
+            y = height - dialog_height
+        elif self.__position == ToastPosition.BOTTOM_MIDDLE:
+            x = (width - dialog_width) // 2
+            y = height - dialog_height
+        elif self.__position == ToastPosition.BOTTOM_LEFT:
+            x = 0
+            y = height - dialog_height
+        elif self.__position == CustomToastPosition.MIDDLE_RIGHT:
+            x = width - dialog_width
+            y = (height - dialog_height) // 2
+        elif self.__position == ToastPosition.CENTER:
+            x = (width - dialog_width) // 2
+            y = (height - dialog_height) // 2
+        elif self.__position == CustomToastPosition.MIDDLE_LEFT:
+            x = 0
+            y = (height - dialog_height) // 2
+
+        self.move(x, y)
+
+    def show(self):
+        """
+        Display the VideoToast and start playback.
+        """
+        if self.__media_path != "":
+            if self.__file_extension == ".gif":  # If using QMovie
+                self.__movie.start()
+            else:  # If using QMediaPlayer
+                self.__player.play()
+        super(VideoToast, self).show()
+
+        # Start duration timer
+        if self.__duration != 0:
+            self.__duration_timer.start(self.__duration)
+
+    def handle_media_status(self, status):
+        """
+        Close the dialog when video playback ends.
+        """
+        if status == QMediaPlayer.EndOfMedia:
+            self.close()
+
+    def closeEvent(self, event):
+        """
+        Stop playback when the dialog is closed.
+        """
+        if hasattr(self, "movie"):  # If using QMovie
+            self.__movie.stop()
+        elif hasattr(self, "player"):  # If using QMediaPlayer
+            self.__player.stop()
+        event.accept()
+
+        if self.__parent:
+            self.__parent.is_opened_media_alert = False
+
+    def setDuration(self, duration: int):
+        """
+        Set the duration of the toast
+        :param duration: duration in milliseconds
+        """
+        self.__duration = duration
+
+    def hide(self):
+        """Start hiding process of the toast notification"""
+        if self.__duration != 0:
+            self.__duration_timer.stop()
+            self.close()
 
 
 class LoadingOverlay(QWidget):
@@ -42,17 +197,16 @@ class LoadingOverlay(QWidget):
 class AddSentenceDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.parent = parent
         self.setWindowTitle("Add Sentence")
         self.setModal(True)
 
         # sentence input
-        sentence_input_label = QLabel("[Input Sentence]", self)
         self.sentence_input = QLineEdit(self)
         self.sentence_input.setMinimumWidth(parent.ui_config.sentence_input_min_width)
         self.sentence_input.setPlaceholderText("Please enter a sentence.")
 
-        score_settings_label = QLabel("[Score Settings]", self)
-
+        # Score Settings
         # score settings input
         decimals = UIConfig.score_settings_decimals
         single_step = UIConfig.score_settings_single_step
@@ -85,8 +239,6 @@ class AddSentenceDialog(QDialog):
         score_settings_box.addWidget(self.score_threshold_input)
 
         alarm_settings_box = QHBoxLayout()
-
-        alarm_label = QLabel("[Alarm]", self)
         self.alarm_checkbox = QCheckBox("On", self)
         self.alarm_title_input = QLineEdit(self)
         self.alarm_title_input.setMinimumWidth(parent.ui_config.alarm_title_input_min_width)
@@ -95,20 +247,59 @@ class AddSentenceDialog(QDialog):
         self.alarm_color_combobox.addItems(COLOR_DICT.keys())
         self.alarm_position_combobox = QComboBox(self)
         self.alarm_position_combobox.addItems(POSITION_DICT.keys())
+        self.alarm_position_combobox.setCurrentText("BOTTOM_MIDDLE")
 
         alarm_settings_box.addWidget(self.alarm_checkbox)
         alarm_settings_box.addWidget(self.alarm_title_input)
         alarm_settings_box.addWidget(self.alarm_color_combobox)
         alarm_settings_box.addWidget(self.alarm_position_combobox)
 
+        media_alarm_settings_box = QVBoxLayout()
+
+        media_alarm_settings = QHBoxLayout()
+        self.media_alarm_checkbox = QCheckBox("On", self)
+        self.media_alarm_title_input = QLineEdit(self)
+        self.media_alarm_title_input.setPlaceholderText("Media Alarm Title")
+        self.media_alarm_position_combobox = QComboBox(self)
+        self.media_alarm_position_combobox.addItems(POSITION_DICT.keys())
+        self.media_alarm_position_combobox.setCurrentText("CENTER")
+        self.media_select_button = QPushButton("Select Media File")
+        self.media_alarm_media_path_input = QLineEdit(STR_SELECTED_FILE_WILL_BE_DISPLAYED)
+        self.media_alarm_media_path_input.setEnabled(False)
+
+        media_alarm_settings.addWidget(self.media_alarm_checkbox)
+        media_alarm_settings.addWidget(self.media_alarm_title_input)
+        media_alarm_settings.addWidget(self.media_alarm_position_combobox)
+        media_alarm_settings_box.addLayout(media_alarm_settings)
+        media_alarm_settings_box.addWidget(self.media_select_button)
+        media_alarm_settings_box.addWidget(self.media_alarm_media_path_input)
+
         # Layout configuration
         settings_box = QVBoxLayout()
-        settings_box.addWidget(sentence_input_label)
-        settings_box.addWidget(self.sentence_input)
-        settings_box.addWidget(score_settings_label)
-        settings_box.addLayout(score_settings_box)
-        settings_box.addWidget(alarm_label)
-        settings_box.addLayout(alarm_settings_box)
+
+        ui_sentence_box = QGroupBox("Sentence Settings")
+        ui_sentence_layout = QVBoxLayout()
+        ui_sentence_layout.addWidget(self.sentence_input)
+        ui_sentence_box.setLayout(ui_sentence_layout)
+        settings_box.addWidget(ui_sentence_box)
+
+        ui_score_box = QGroupBox("Score Settings")
+        ui_score_layout = QVBoxLayout()
+        ui_score_layout.addLayout(score_settings_box)
+        ui_score_box.setLayout(ui_score_layout)
+        settings_box.addWidget(ui_score_box)
+
+        ui_alarm_box = QGroupBox("Alarm Settings")
+        ui_alarm_layout = QVBoxLayout()
+        ui_alarm_layout.addLayout(alarm_settings_box)
+        ui_alarm_box.setLayout(ui_alarm_layout)
+        settings_box.addWidget(ui_alarm_box)
+
+        ui_media_alarm_box = QGroupBox("Media Alarm Settings")
+        ui_media_alarm_layout = QVBoxLayout()
+        ui_media_alarm_layout.addLayout(media_alarm_settings_box)
+        ui_media_alarm_box.setLayout(ui_media_alarm_layout)
+        settings_box.addWidget(ui_media_alarm_box)
 
         # Add Cancel and Submit buttons
         button_box = QHBoxLayout()
@@ -121,14 +312,42 @@ class AddSentenceDialog(QDialog):
         self.setLayout(settings_box)
 
         # Connect button actions
+        cancel_button.disconnect()
         cancel_button.clicked.connect(self.reject)
+        submit_button.disconnect()
         submit_button.clicked.connect(self.accept)
+        self.media_select_button.disconnect()
+        self.media_select_button.clicked.connect(self.__open_file_dialog)
 
         # Connect sentence input enter key event
+        self.sentence_input.disconnect()
         self.sentence_input.returnPressed.connect(self.accept)  # enter key
+        self.score_min_input.disconnect()
         self.score_min_input.installEventFilter(self)
+        self.score_max_input.disconnect()
         self.score_max_input.installEventFilter(self)
+        self.score_threshold_input.disconnect()
         self.score_threshold_input.installEventFilter(self)
+
+    def __open_file_dialog(self):
+        # Check if base_path is valid
+        initial_path = "" if self.parent is None or self.parent.base_path is None else os.path.join(
+            self.parent.base_path, "media")
+
+        # Open file dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select File",                # Dialog title
+            initial_path,
+            "All Files (*);;"
+            "MP3 Files (*.mp3);;MP4 Files (*.mp4);;AVI Files (*.avi);;MOV Files (*.mov);;"
+            "FLV Files (*.flv);;WMV Files (*.wmv);;MKV Files (*.mkv);;WEBM Files (*.webm)"  # Filter
+        )
+
+        if file_path:
+            self.media_alarm_media_path_input.setText(f"{file_path}")
+        else:
+            self.media_alarm_media_path_input.setText(STR_NO_FILE_SELECTED)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.KeyPress:
@@ -161,10 +380,29 @@ class AddSentenceDialog(QDialog):
     def get_alarm_color(self) -> str:
         return COLOR_DICT[self.alarm_color_combobox.currentText()]
 
+    def get_media_alarm_checked(self) -> bool:
+        return self.media_alarm_checkbox.isChecked()
+
+    def get_media_alarm_title_input_text(self) -> str:
+        return self.media_alarm_title_input.text()
+
+    def get_media_alarm_media_path_label_text(self) -> str:
+        if self.media_alarm_media_path_input.text() == STR_NO_FILE_SELECTED:
+            return ""
+        elif self.media_alarm_media_path_input.text() == STR_SELECTED_FILE_WILL_BE_DISPLAYED:
+            return ""
+        else:
+            return self.media_alarm_media_path_input.text()
+
+    def get_media_alarm_position(self) -> int:
+        return POSITION_DICT[self.media_alarm_position_combobox.currentText()]
+
 
 class ModifySentenceDialog(AddSentenceDialog):
     def __init__(self, sentence, score_min, score_max, score_threshold,
-                 alarm, alarm_title, alarm_position, alarm_color, parent=None):
+                 alarm, alarm_title, alarm_position, alarm_color,
+                 media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position,
+                 parent=None):
         super().__init__(parent)
         self.setWindowTitle("Modify Sentence")
 
@@ -179,6 +417,11 @@ class ModifySentenceDialog(AddSentenceDialog):
         self.alarm_position_combobox.setCurrentText(POSITION_DICT_REVERSE[alarm_position])
         self.alarm_color_combobox.setCurrentText(COLOR_DICT_REVERSE[alarm_color])
 
+        self.media_alarm_checkbox.setChecked(media_alarm)
+        self.media_alarm_title_input.setText(media_alarm_title)
+        self.media_alarm_media_path_input.setText(media_alarm_media_path)
+        self.media_alarm_position_combobox.setCurrentText(POSITION_DICT_REVERSE[media_alarm_position])
+
 
 class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __init__(self, view_model: ClipViewModel, ui_config: UIConfig, base_path, adjusted_video_path_lists,
@@ -189,6 +432,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.prev_app_layout_container = None
         self.prev_app_layout = None
         self.is_opened_dialog = False
+        self.is_opened_media_alert = False
 
         self.loading_overlay = LoadingOverlay(self)
         self.loading_overlay.hide()
@@ -258,15 +502,24 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.clear_button = QPushButton("Clear", self)
 
         # Connect button events
+        self.resume_button.disconnect()
         self.resume_button.clicked.connect(self.resume)
+        self.pause_button.disconnect()
         self.pause_button.clicked.connect(self.pause)
+        self.show_settings_button.disconnect()
         self.show_settings_button.clicked.connect(self.__toggle_settings)
+        self.show_percentage_button.disconnect()
         self.show_percentage_button.clicked.connect(self.__toggle_percent)
+        self.show_score_button.disconnect()
         self.show_score_button.clicked.connect(self.__toggle_score)
+        self.alarm_only_on_camera_ch_button.disconnect()
         self.alarm_only_on_camera_ch_button.clicked.connect(self.__toggle_alram_only_on_camera_ch)
 
+        self.add_button.disconnect()
         self.add_button.clicked.connect(self.open_add_sentence_dialog)
+        self.reset_button.disconnect()
         self.reset_button.clicked.connect(self.reset_text_list)
+        self.clear_button.disconnect()
         self.clear_button.clicked.connect(self.clear_text_list)
 
         # Connect sentence input updated event
@@ -421,6 +674,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         if self.ui_config.fullscreen_mode:
             exit_button = QPushButton("Exit", self)
+            exit_button.disconnect()
             exit_button.clicked.connect(self.close_application)
             app_control_layout.addWidget(exit_button)
 
@@ -680,7 +934,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 self.clear_layout(item.layout())
 
     def update_sentence_output(self, idx: int, text: str, progress: int, score: float,
-                               alarm: bool, alarm_title: str, alarm_position: int, alarm_color: str):
+                               alarm: bool, alarm_title: str, alarm_position: int, alarm_color: str,
+                               media_alarm: bool, media_alarm_title: str, media_alarm_media_path: str,
+                               media_alarm_position: int):
         prefix_str = ""
         if self.ui_config.show_percent:
             prefix_str += "[" + str(progress) + "%]"
@@ -726,17 +982,20 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
 
-        if alarm and not self.is_opened_dialog and Toast.getQueuedCount() <= 9:
-            if self.ui_config.alarm_only_on_camera_ch and is_camera_source is False:
-                # skip to show alarm when video channel is not camera source
-                return
+        if self.ui_config.alarm_only_on_camera_ch and is_camera_source is False:
+            # skip to show alarm when video channel is not camera source
+            return
 
+        if alarm and not self.is_opened_dialog and Toast.getQueuedCount() <= 9:
             self.show_toast(prefix_str + text, title=alarm_title, duration=2000, preset=ToastPreset.WARNING,
                             position=ToastPosition(alarm_position), color=alarm_color,
                             font_size=self.ui_config.sentence_alarm_font_size)
 
+        if media_alarm and not self.is_opened_dialog and not self.is_opened_media_alert:
+            self.show_media_toast(media_alarm_title, media_alarm_media_path, ToastPosition(media_alarm_position))
+
     def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING,
-                   position=ToastPosition.CENTER, color="#E8B849", font_size=9):
+                   position=ToastPosition.BOTTOM_MIDDLE, color="#E8B849", font_size=9, media_path=None):
         Toast.setMaximumOnScreen(3)
         toast = Toast(self)
         toast.setDuration(duration)
@@ -753,14 +1012,19 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         toast.show()
 
+    def show_media_toast(self, title, media_path, position=ToastPosition.CENTER):
+        self.is_opened_media_alert = True
+        video_toast = VideoToast(title, media_path, position, self)
+        video_toast.show()
+
     @staticmethod
     def __round_down_float(val: float, exp="0.000", rounding=ROUND_HALF_UP):
         return float(Decimal(val).quantize(Decimal(exp), rounding=rounding))
 
     def open_add_sentence_dialog(self):
-        dialog = AddSentenceDialog(self)
         self.is_opened_dialog = True
-        result = dialog.exec_()
+        dialog = AddSentenceDialog(self)
+        result = dialog.exec()
         if result == QDialog.Accepted:
             sentence = dialog.get_sentence_input_text()
             score_min = self.__round_down_float(dialog.get_score_min_input_value())
@@ -770,8 +1034,14 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             alarm_title = dialog.get_alarm_title_input_text()
             alarm_position = dialog.get_alarm_position()
             alarm_color = dialog.get_alarm_color()
+            media_alarm = dialog.get_media_alarm_checked()
+            media_alarm_title = dialog.get_media_alarm_title_input_text()
+            media_alarm_media_path = dialog.get_media_alarm_media_path_label_text()
+            media_alarm_position = dialog.get_media_alarm_position()
+
             self.add_sentence(sentence, score_min, score_max, score_threshold,
-                              alarm, alarm_title, alarm_position, alarm_color)
+                              alarm, alarm_title, alarm_position, alarm_color,
+                              media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position)
             self.is_opened_dialog = False
         elif result == QDialog.Rejected:
             self.is_opened_dialog = False
@@ -784,14 +1054,19 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         score_threshold = sentence.get_score_threshold()
         alarm = sentence.get_alarm()
         alarm_title = sentence.get_alarm_title()
-        alarm_position = sentence.get_alarm_info().getPosition()
-        alarm_color = sentence.get_alarm_info().getColor()
+        alarm_position = sentence.get_alarm_position()
+        alarm_color = sentence.get_alarm_color()
+        media_alarm = sentence.get_media_alarm()
+        media_alarm_title = sentence.get_media_alarm_title()
+        media_alarm_media_path = sentence.get_media_alarm_media_path()
+        media_alarm_position = sentence.get_media_alarm_position()
 
         dialog = ModifySentenceDialog(sentence, score_min, score_max, score_threshold,
-                                      alarm, alarm_title, alarm_position, alarm_color, self)
+                                      alarm, alarm_title, alarm_position, alarm_color,
+                                      media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position,
+                                      self)
+        result = dialog.exec()
         self.is_opened_dialog = True
-
-        result = dialog.exec_()
         if result == QDialog.Accepted:
             updated_sentence = dialog.get_sentence_input_text()
             updated_min = self.__round_down_float(dialog.get_score_min_input_value())
@@ -801,8 +1076,14 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             updated_alarm_title = dialog.get_alarm_title_input_text()
             updated_alarm_position = dialog.get_alarm_position()
             updated_alarm_color = dialog.get_alarm_color()
+            updated_media_alarm = dialog.get_media_alarm_checked()
+            updated_media_alarm_title = dialog.get_media_alarm_title_input_text()
+            updated_media_alarm_media_path = dialog.get_media_alarm_media_path_label_text()
+            updated_media_alarm_position = dialog.get_media_alarm_position()
             self.modify_sentence(updated_sentence, updated_min, updated_max, updated_threshold,
-                                 updated_alarm, updated_alarm_title, updated_alarm_position, updated_alarm_color, index)
+                                 updated_alarm, updated_alarm_title, updated_alarm_position, updated_alarm_color,
+                                 updated_media_alarm, updated_media_alarm_title, updated_media_alarm_media_path,
+                                 updated_media_alarm_position, index)
             self.is_opened_dialog = False
         elif result == QDialog.Rejected:
             self.is_opened_dialog = False
@@ -841,11 +1122,19 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             sentence_label = QLabel(sentence.get_text(), self)
             sentence_box.addWidget(sentence_label)
 
-            sentence_alarm_checkbox = QCheckBox("", self)
+            sentence_alarm_checkbox = QCheckBox("Toast", self)
             sentence_alarm_checkbox.setChecked(sentence.get_alarm())
             sentence_alarm_checkbox.clicked.connect(lambda _, i=idx: self.toggle_alarm(i))
             sentence_alarm_checkbox.setFixedWidth(40)
+            sentence_alarm_checkbox.setStyleSheet("font-size: 8px;")
             sentence_box.addWidget(sentence_alarm_checkbox)
+
+            sentence_media_alarm_checkbox = QCheckBox("Media", self)
+            sentence_media_alarm_checkbox.setChecked(sentence.get_media_alarm())
+            sentence_media_alarm_checkbox.clicked.connect(lambda _, i=idx: self.toggle_media_alarm(i))
+            sentence_media_alarm_checkbox.setFixedWidth(40)
+            sentence_media_alarm_checkbox.setStyleSheet("font-size: 8px;")
+            sentence_box.addWidget(sentence_media_alarm_checkbox)
 
             self.sentence_list_layout.addLayout(sentence_box)
 
@@ -860,14 +1149,16 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                 self.clear_layout(item.layout())
 
     def add_sentence(self, sentence, score_min, score_max, score_threshold,
-                     alarm, alarm_title, alarm_position, alarm_color):
+                     alarm, alarm_title, alarm_position, alarm_color,
+                     media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position):
         if len(sentence) == 0:
             self.show_toast("Please enter a sentence and press the Add button.")
             return
 
         self.show_loading()
         self.__view_model.insert_sentence(sentence, score_min, score_max, score_threshold,
-                                          alarm, alarm_title, alarm_position, alarm_color)
+                                          alarm, alarm_title, alarm_position, alarm_color,
+                                          media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position)
 
     def delete_sentence(self, index):
         self.show_loading()
@@ -881,11 +1172,18 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.show_loading()
         self.__view_model.toggle_alarm(index)
 
+    def toggle_media_alarm(self, index):
+        self.show_loading()
+        self.__view_model.toggle_media_alarm(index)
+
     def modify_sentence(self, sentence, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color, index):
+                        alarm, alarm_title, alarm_position, alarm_color,
+                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index):
         self.show_loading()
         self.__view_model.update_sentence(sentence, score_min, score_max, score_threshold,
-                                          alarm, alarm_title, alarm_position, alarm_color, index)
+                                          alarm, alarm_title, alarm_position, alarm_color,
+                                          media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position,
+                                          index)
 
     def reset_text_list(self):
         self.show_loading()
