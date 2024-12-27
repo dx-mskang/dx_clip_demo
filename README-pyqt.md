@@ -173,6 +173,13 @@ source pia-package-executor-pyqt/bin/activate
 
 #### 2. Install Demo App dependency packages
 
+- Install packages(gstreamer, qt5 multi media plugins for play mp3, mp4, gif files)
+```bash
+sudo apt-get install -y gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
+sudo apt-get install -y libqt5multimedia5-plugins
+```
+
+- Install pip packages
 ```bash
 pip install -r clip_demo_app_pyqt/requirements.txt
 ```
