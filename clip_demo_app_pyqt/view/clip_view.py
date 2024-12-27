@@ -157,10 +157,12 @@ class VideoToast(QDialog):
         """
         Stop playback when the dialog is closed.
         """
-        if hasattr(self, "movie"):  # If using QMovie
+        if self.__file_extension == ".gif":
             self.__movie.stop()
-        elif hasattr(self, "player"):  # If using QMediaPlayer
+            self.__movie.deleteLater()
+        else:
             self.__player.stop()
+            self.__player.deleteLater()
         event.accept()
 
         if self.__parent:
