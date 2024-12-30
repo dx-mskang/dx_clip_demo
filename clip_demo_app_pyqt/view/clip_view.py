@@ -37,7 +37,7 @@ class CustomToastPosition(Enum):
 class VideoToast(QDialog):
     def __init__(self, title, media_path, position, parent=None):
         super().__init__(parent)
-        self.__duration = 10000
+        self.__duration = 5000
         self.__parent = parent
         self.__media_path = media_path
         self.__position = position
@@ -157,12 +157,10 @@ class VideoToast(QDialog):
         """
         Stop playback when the dialog is closed.
         """
-        if self.__file_extension == ".gif":
+        if self.__file_extension == ".gif" and self.__movie:
             self.__movie.stop()
-            self.__movie.deleteLater()
-        else:
+        elif self.__player:
             self.__player.stop()
-            self.__player.deleteLater()
         event.accept()
 
         if self.__parent:
@@ -341,9 +339,11 @@ class AddSentenceDialog(QDialog):
             self,
             "Select File",                # Dialog title
             initial_path,
-            "All Files (*);;"
-            "MP3 Files (*.mp3);;MP4 Files (*.mp4);;AVI Files (*.avi);;MOV Files (*.mov);;"
-            "FLV Files (*.flv);;WMV Files (*.wmv);;MKV Files (*.mkv);;WEBM Files (*.webm)"  # Filter
+            "Gif Files (*.gif)"
+#            "All Files (*);;"
+#            "MP3 Files (*.mp3);;MP4 Files (*.mp4);;AVI Files (*.avi);;MOV Files (*.mov);;"
+#            "FLV Files (*.flv);;WMV Files (*.wmv);;MKV Files (*.mkv);;WEBM Files (*.webm)"
+# Filter
         )
 
         if file_path:
@@ -1018,6 +1018,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.is_opened_media_alert = True
         video_toast = VideoToast(title, media_path, position, self)
         video_toast.show()
+
 
     @staticmethod
     def __round_down_float(val: float, exp="0.000", rounding=ROUND_HALF_UP):
