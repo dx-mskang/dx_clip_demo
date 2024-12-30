@@ -6,6 +6,7 @@
 ### Pre-Requisite
 Ensure you are using Python 3.11.
 ```bash
+sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt-get install -y python3.11 python3.11-dev python3.11-venv libxcb-xinerama0
 ```
 
