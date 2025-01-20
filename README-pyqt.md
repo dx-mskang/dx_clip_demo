@@ -178,6 +178,8 @@ source pia-package-executor-pyqt/bin/activate
 ```bash
 sudo apt-get install -y gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
 sudo apt-get install -y libqt5multimedia5-plugins
+sudo apt-get install -y libpulse-mainloop-glib0
+
 ```
 
 - Install pip packages
