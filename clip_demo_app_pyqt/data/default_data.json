@@ -4,6 +4,9 @@
   "default_sentence_score_threshold": 0.225,
   "video_path_lists": [
     [
+      "rtsp://210.99.70.120:1935/live/cctv010.stream"
+    ],
+    [
       "demo_videos/fire_on_car"
     ],
     [
@@ -53,6 +56,18 @@
     ]
   ],
   "sentence_list": [
+    {
+      "text": "the man is rasing his hands",
+      "min_score": 0.2,
+      "max_score": 0.25,
+      "threshold": 0.22
+    },
+    {
+      "text": "Cars are passing on the road.",
+      "min_score": 0.2,
+      "max_score": 0.25,
+      "threshold": 0.225
+    },
     {
       "text": "The subway is crowded with people",
       "min_score": 0.27,

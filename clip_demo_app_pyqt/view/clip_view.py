@@ -605,20 +605,27 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __layout_setup(self):
         # 루트 위젯과 레이아웃을 한 번만 생성
         if not hasattr(self, "root_widget"):
-            self.settings_box_widget = QWidget()
-            self.settings_box_layout = QVBoxLayout(self.settings_box_widget)
-            self.settings_box_layout.addLayout(self.generate_settings_box())
-
             self.top_panel_layout = QVBoxLayout()
             self.top_panel_layout.addLayout(self.generate_control_ui())
+            self.description_widget = self.generate_description_box()
+            self.logo_widget = self.generate_logo_box()
 
-            self.main_panel_layout = QHBoxLayout()
+            if self.ui_helper.is_portrait:
+                self.main_panel_layout = QVBoxLayout()
+                self.main_panel_layout.addWidget(self.description_widget)
+                self.main_panel_layout.addWidget(self.logo_widget)
+                self.main_panel_layout.addLayout(self.top_panel_layout)
+            else:
+                self.main_panel_layout = QHBoxLayout()
+
             self.main_panel_layout.addLayout(self.generate_video_box())
+            self.settings_box_widget = self.generate_settings_box()
             self.main_panel_layout.addWidget(self.settings_box_widget)
 
             self.root_widget = QWidget()
             self.root_layout = QVBoxLayout(self.root_widget)
-            self.root_layout.addLayout(self.top_panel_layout)
+            if not self.ui_helper.is_portrait:
+                self.root_layout.addLayout(self.top_panel_layout)
             self.root_layout.addLayout(self.main_panel_layout)
 
             self.setCentralWidget(self.root_widget)
@@ -632,7 +639,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         # 레이아웃 업데이트
         self.__layout_setup()
 
-    def generate_settings_box(self):
+    def generate_settings_box(self, fixed_height=-1):
         # settings layout
         # [Sentence List]
         # [add] | [clr]
@@ -648,7 +655,13 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         settings_box.addLayout(input_control_box)
         settings_box.addWidget(self.sentence_list_label)
         settings_box.addWidget(self.sentence_list_scroll_area)
-        return settings_box
+
+        settings_box_widget = QWidget()
+        if fixed_height != -1:
+            settings_box_widget.setFixedHeight(fixed_height)
+        settings_box_widget.setLayout(settings_box)
+
+        return settings_box_widget
 
     def generate_control_ui(self):
         # [resume] or [pause] | [fps info] | [exit]
@@ -684,6 +697,49 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         control_box.addWidget(app_control_box)
 
         return control_box
+
+    @staticmethod
+    def generate_logo_box():
+        image_label = QLabel()
+        pixmap = QPixmap("clip_demo_app_pyqt/res/LGUP_BI.svg")
+        image_label.setPixmap(pixmap)
+        image_label.setScaledContents(True)
+        image_label.setFixedSize(140, 45)
+        return image_label
+
+    @staticmethod
+    def generate_description_box():
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(46)
+
+        detail_font = QFont()
+        detail_font.setPointSize(18)
+
+        description_box = QVBoxLayout()
+
+        description_title_label = QLabel("On-Device Vison AI")
+        description_title_label.setFont(title_font)
+
+        description_text = (
+            "· Using low power(<5W) & High performance NPU\n"
+            "· Enhanced Privacy - Sensitive Data stay on the device, ensure maximum security.\n"
+            "· Contextual Scene understanding with vision-language model\n"
+            "· Easy to make new surveillance scenario setup with prompt typing"
+        )
+        description_detail_label = QLabel(description_text)
+        description_detail_label.setFont(detail_font)
+        description_detail_label.setWordWrap(True)
+
+        description_widget = QWidget()
+        description_widget.setFixedHeight(420)
+        description_widget.setStyleSheet("background-color: hotpink; color: white; line-height: 1.5;")
+
+        description_box.addWidget(description_title_label)
+        description_box.addWidget(description_detail_label)
+
+        description_widget.setLayout(description_box)
+        return description_widget
 
     def generate_video_box(self):
         if self.ui_config.num_channels == 1:
@@ -984,6 +1040,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
 
+        # TODO: send data to server refer to below
+        self.send_event_to_server(alarm_title, text, idx, score)
+
         if self.ui_config.alarm_only_on_camera_ch and is_camera_source is False:
             # skip to show alarm when video channel is not camera source
             return
@@ -995,6 +1054,36 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         if media_alarm and not self.is_opened_dialog and not self.is_opened_media_alert:
             self.show_media_toast(media_alarm_title, media_alarm_media_path, ToastPosition(media_alarm_position))
+
+    def send_event_to_server(self, message_type, message, channel, score):
+        import requests
+        import xml.etree.ElementTree as ET
+        from datetime import datetime
+
+        root = ET.Element("EventMessages")
+
+        utc_now = datetime.utcnow().replace(tzinfo=None)
+        utc_now_str = utc_now.isoformat()
+
+        ET.SubElement(root, "UTCtime").text = utc_now_str
+        ET.SubElement(root, "AlarmTitle").text = message_type
+        ET.SubElement(root, "AlarmText").text = message
+        ET.SubElement(root, "ChannelID").text = str(channel)
+        ET.SubElement(root, "Score").text = str(score)
+
+        tree = ET.ElementTree(root)
+
+        xml_data = ET.tostring(root, encoding='utf-8', method='xml')
+        headers = {
+            'Content-Type': 'text/xml; charset=utf-8'
+        }
+        url = 'http://example.com/api'  # 서버 URL
+
+        # TODO: send example
+        print("=== SEND EVENT TO SERVER EXAM === \n" + xml_data.decode('utf-8'))
+        # response = requests.post(url, data=xml_data, headers=headers)
+        # print("서버 응답 코드:", response.status_code)
+        # print("서버 응답 내용:", response.text)
 
     def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING,
                    position=ToastPosition.BOTTOM_MIDDLE, color="#E8B849", font_size=9, media_path=None):

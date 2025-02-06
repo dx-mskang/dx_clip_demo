@@ -65,7 +65,8 @@ class ClipVideoConsumer(VideoConsumer):
         # Increment the frame counter
         self.__frame_count += 1
 
-        interval = max(1, int(fps / self.__num_of_inference_per_sec))  # Calculate interval (must be at least 1)
+        # Calculate interval (must be at least 1 / max fps must be 30(for in case of rtsp))
+        interval = max(1, int(min(30, fps) / self.__num_of_inference_per_sec))
         # Perform inference only on certain frames based on the interval
         if self.__frame_count % interval != 0:
             return  # Skip frames that don't match the interval

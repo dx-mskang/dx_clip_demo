@@ -1,6 +1,7 @@
 import math
 
 from PyQt5.QtWidgets import QMainWindow, QApplication
+from PyQt5.QtGui import QGuiApplication
 
 
 class UIConfig:
@@ -50,7 +51,7 @@ class UIConfig:
 
 
 class UIHelper:
-    def __init__(self, ctx: QMainWindow, ui_config: UIConfig):
+    def __init__(self, ctx: QMainWindow, ui_config: UIConfig, window_w: int=-1, window_h: int=-1):
         super().__init__()
         self.ui_config = ui_config
 
@@ -71,9 +72,21 @@ class UIHelper:
         self.smaller_font_line_height = 16
         self.smaller_font_bottom_padding = 8
 
-        screen_resolution = QApplication.desktop().screenGeometry()
-        self.window_w = screen_resolution.width()
-        self.window_h = screen_resolution.height()
+        if window_w == -1 or window_h == -1:
+            screen_geometry = QGuiApplication.primaryScreen().geometry()
+            self.window_w = screen_geometry.width()
+            self.window_h = screen_geometry.height()
+            scale_factor = self.window_h / self.window_w
+        else:
+            self.window_w = window_w
+            self.window_h = window_h
+            scale_factor = self.window_w / self.window_h
+
+        self.is_portrait = self.__is_portrait_mode(self.window_w, self.window_h)
+
+        # prevent code for abnormally resolution on docker container
+        if self.is_portrait and self.window_w > self.window_h:
+            self.window_w, self.window_h = self.window_h, self.window_w
 
         self.grid_rows, self.grid_cols = self.__calculate_grid_size(self.ui_config.num_channels)
 
@@ -83,15 +96,20 @@ class UIHelper:
         if self.ui_config.show_each_fps_label:
             self.window_h -= self.smaller_font_line_height * 4 * self.grid_rows
 
-        print(f"Screen resolution: {self.window_w}x{self.window_h}")
-
         base_video_area_w = int(self.window_w * self.ui_config.base_video_area_ratio)  # Determine grid size considering the aspect ratio
-        scale_factor = self.window_h / self.window_w
         calc_video_area_h = int(base_video_area_w * scale_factor)
 
         self.video_area_w = base_video_area_w
         self.video_area_h = calc_video_area_h
         self.video_size = (int(self.video_area_w / self.grid_rows), int(self.video_area_h / self.grid_cols))
+
+        print(f"Screen resolution: {self.window_w}x{self.window_h}, Portrait: {self.is_portrait}")
+        print(f"Screen video_area: {self.video_area_w}x{self.video_area_h}")
+        print(f"Screen video_size: {self.video_size}")
+
+    @staticmethod
+    def __is_portrait_mode(window_w, window_h):
+        return window_h > window_w
 
     @staticmethod
     def __calculate_grid_size(num_channels):
@@ -115,6 +133,6 @@ class UIHelper:
         elif num_channels <= 16:
             return 4, 4
         else:
-            cols = math.ceil(math.sqrt(num_channels))  # Calculate the number of columns to form a nearly square shape
-            rows = math.ceil(num_channels / cols)  # Calculate the number of rows by dividing the total number of channels by the number of columns
+            cols = math.ceil(math.sqrt(num_channels))  # Nearly square shape
+            rows = math.ceil(num_channels / cols)
             return cols, rows

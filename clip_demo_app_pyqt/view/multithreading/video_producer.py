@@ -40,7 +40,15 @@ class VideoProducer(QObject):
         else:
             self.__base_path = base_path
             self.video_path_list = video_path_list
-            self.__video_path_current = os.path.join(self.__base_path, self.video_path_list[self.__current_index] + ".mp4")
+
+            video_path = self.video_path_list[self.__current_index]
+            if video_path.startswith("rtsp"):
+                self.__is_rtsp_source = True
+                self.__video_path_current = f"{video_path}"
+                os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+            else:
+                self.__video_path_current = os.path.join(self.__base_path, video_path + ".mp4")
+
             self.__is_camera_source = False
 
         self.__video_size = video_size
@@ -105,7 +113,7 @@ class VideoProducer(QObject):
 
     def __change_video(self, is_next=False):
         camera_mode = False
-        if self.video_path_list[0] == '/dev/video0':
+        if self.video_path_list[0] == '/dev/video0' or self.video_path_list[self.__current_index].startswith("rtsp"):
             camera_mode = True
             is_next = False
 
