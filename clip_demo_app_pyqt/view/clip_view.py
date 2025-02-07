@@ -13,7 +13,8 @@ from PyQt5.QtGui import QPixmap, QFont, QColor, QMovie
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
-    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox, QComboBox, QFileDialog
+    QHBoxLayout, QGridLayout, QDialog, QScrollArea, QDoubleSpinBox, QGroupBox, QCheckBox, QComboBox, QFileDialog, \
+    QSizePolicy
 from overrides import overrides
 from pyqttoast import ToastPreset, ToastPosition, Toast
 
@@ -607,26 +608,37 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         if not hasattr(self, "root_widget"):
             self.top_panel_layout = QVBoxLayout()
             self.top_panel_layout.addLayout(self.generate_control_ui())
-            self.description_widget = self.generate_description_box()
-            self.logo_widget = self.generate_logo_box()
+            self.description_widget = self.generate_description_box(content_type="image")
+            # self.logo_widget = self.generate_logo_box()
 
             if self.ui_helper.is_portrait:
                 self.main_panel_layout = QVBoxLayout()
+                self.main_panel_layout.setContentsMargins(0, 0, 0, 0)
+                self.main_panel_layout.setSpacing(0)
                 self.main_panel_layout.addWidget(self.description_widget)
-                self.main_panel_layout.addWidget(self.logo_widget)
+                # self.main_panel_layout.addWidget(self.logo_widget)
                 self.main_panel_layout.addLayout(self.top_panel_layout)
             else:
                 self.main_panel_layout = QHBoxLayout()
 
             self.main_panel_layout.addLayout(self.generate_video_box())
-            self.settings_box_widget = self.generate_settings_box()
-            self.main_panel_layout.addWidget(self.settings_box_widget)
 
             self.root_widget = QWidget()
             self.root_layout = QVBoxLayout(self.root_widget)
-            if not self.ui_helper.is_portrait:
+
+            if self.ui_helper.is_portrait:
+                self.root_layout.setContentsMargins(0, 0, 0, 0)
+                self.root_layout.setSpacing(0)
+                self.settings_box_widget = self.generate_settings_box(fixed_height=500)
+
+                self.root_layout.addLayout(self.main_panel_layout)
+                self.root_layout.addWidget(self.settings_box_widget)
+            else:
+                self.settings_box_widget = self.generate_settings_box()
+
                 self.root_layout.addLayout(self.top_panel_layout)
-            self.root_layout.addLayout(self.main_panel_layout)
+                self.main_panel_layout.addWidget(self.settings_box_widget)
+                self.root_layout.addLayout(self.main_panel_layout)
 
             self.setCentralWidget(self.root_widget)
 
@@ -708,37 +720,58 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         return image_label
 
     @staticmethod
-    def generate_description_box():
-        title_font = QFont()
-        title_font.setBold(True)
-        title_font.setPointSize(46)
+    def generate_description_box(content_type="image"):
+        if content_type == "image":
+            image_label = QLabel()
+            pixmap = QPixmap("clip_demo_app_pyqt/res/LGUP_top_banner.png")
 
-        detail_font = QFont()
-        detail_font.setPointSize(18)
+            # QLabel 크기를 부모 위젯 (description_widget)에 맞게 자동 조정
+            image_label.setPixmap(pixmap)
+            image_label.setScaledContents(True)  # 이미지가 QLabel 크기에 맞게 자동 조정
+            image_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)  # 부모 위젯 크기를 따름
 
-        description_box = QVBoxLayout()
+            # 레이아웃 설정 (여백과 간격을 없앰)
+            description_box = QVBoxLayout()
+            description_box.setContentsMargins(0, 0, 0, 0)
+            description_box.setSpacing(0)
+            description_box.addWidget(image_label)
 
-        description_title_label = QLabel("On-Device Vison AI")
-        description_title_label.setFont(title_font)
+            # 최상위 위젯 설정
+            description_widget = QWidget()
+            description_widget.setFixedSize(1080, 420)  # 원하는 크기로 고정
+            description_widget.setLayout(description_box)
 
-        description_text = (
-            "· Using low power(<5W) & High performance NPU\n"
-            "· Enhanced Privacy - Sensitive Data stay on the device, ensure maximum security.\n"
-            "· Contextual Scene understanding with vision-language model\n"
-            "· Easy to make new surveillance scenario setup with prompt typing"
-        )
-        description_detail_label = QLabel(description_text)
-        description_detail_label.setFont(detail_font)
-        description_detail_label.setWordWrap(True)
+            return description_widget
+        else:
+            title_font = QFont()
+            title_font.setBold(True)
+            title_font.setPointSize(46)
 
-        description_widget = QWidget()
-        description_widget.setFixedHeight(420)
-        description_widget.setStyleSheet("background-color: hotpink; color: white; line-height: 1.5;")
+            detail_font = QFont()
+            detail_font.setPointSize(18)
 
-        description_box.addWidget(description_title_label)
-        description_box.addWidget(description_detail_label)
+            description_box = QVBoxLayout()
 
-        description_widget.setLayout(description_box)
+            description_title_label = QLabel("On-Device Vision AI")
+            description_title_label.setFont(title_font)
+
+            description_text = (
+                "· Using low power(<5W) & High performance NPU\n"
+                "· Enhanced Privacy - Sensitive Data stay on the device, ensure maximum security.\n"
+                "· Contextual Scene understanding with vision-language model\n"
+                "· Easy to make new surveillance scenario setup with prompt typing"
+            )
+            description_detail_label = QLabel(description_text)
+            description_detail_label.setFont(detail_font)
+            description_detail_label.setWordWrap(True)
+
+            description_box.addWidget(description_title_label)
+            description_box.addWidget(description_detail_label)
+
+            description_widget = QWidget()
+            description_widget.setFixedHeight(420)
+            description_widget.setStyleSheet("background-color: hotpink; color: white; line-height: 1.5;")
+            description_widget.setLayout(description_box)
         return description_widget
 
     def generate_video_box(self):
@@ -1080,7 +1113,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         url = 'http://example.com/api'  # 서버 URL
 
         # TODO: send example
-        print("=== SEND EVENT TO SERVER EXAM === \n" + xml_data.decode('utf-8'))
+        # print("=== SEND EVENT TO SERVER EXAM === \n" + xml_data.decode('utf-8'))
         # response = requests.post(url, data=xml_data, headers=headers)
         # print("서버 응답 코드:", response.status_code)
         # print("서버 응답 내용:", response.text)
