@@ -75,7 +75,7 @@ class VideoProducer(QObject):
         logging.debug("VideoProducer thread started, channel_id: " + str(self._channel_idx))
 
         if self.__running is False or self.__pause_thread:
-            time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
+            time.sleep(0.001)  # Adding a small sleep to avoid busy-waiting
             return None
 
         if self.__video_fps_sync_mode:
@@ -148,6 +148,20 @@ class VideoProducer(QObject):
 
     def pause(self):
         self.__pause_thread = True
+        timer = threading.Timer(0.5, self.draw_black_preview)
+        timer.start()
+
+    def draw_black_preview(self):
+        # for draw black preview image
+        self.__current_video_frame = np.zeros((self.__video_label_size[1], self.__video_label_size[0], 3),
+                                              dtype=np.uint8)
+        rgb_image = cv2.cvtColor(self.__current_video_frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        scaled_image = convert_to_qt_format.scaled(self.__video_label_size[0], self.__video_label_size[1],
+                                                   Qt.KeepAspectRatio)
+        self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
 
     def get_video_frame_updated_signal(self) -> [pyqtSignal]:
         return [self.__scaled_video_frame_updated_signal, self.__video_source_changed_signal]

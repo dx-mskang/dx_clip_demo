@@ -30,7 +30,7 @@ class VideoConsumer(QObject):
         try:
             if self.__running:
                 if self.__pause_thread:
-                    time.sleep(0.01)  # Introduce a short sleep to prevent tight looping
+                    time.sleep(0.001)  # Introduce a short sleep to prevent tight looping
                     return
 
                 if self.__video_fps_sync_mode:

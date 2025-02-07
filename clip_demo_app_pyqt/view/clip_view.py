@@ -499,6 +499,10 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.alarm_only_on_camera_ch_button.setCheckable(True)
         self.alarm_only_on_camera_ch_button.setChecked(self.ui_config.alarm_only_on_camera_ch)
 
+        self.camera_switch_button = QPushButton("Camera ON")
+        self.camera_switch_button.setCheckable(True)
+        self.camera_switch_button.setChecked(self.ui_config.camera_switch)
+
         # QPushButton initialization (text add and delete)
         self.add_button = QPushButton("Add", self)
         self.reset_button = QPushButton("Reset", self)
@@ -516,7 +520,9 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.show_score_button.disconnect()
         self.show_score_button.clicked.connect(self.__toggle_score)
         self.alarm_only_on_camera_ch_button.disconnect()
-        self.alarm_only_on_camera_ch_button.clicked.connect(self.__toggle_alram_only_on_camera_ch)
+        self.alarm_only_on_camera_ch_button.clicked.connect(self.__toggle_alarm_only_on_camera_ch)
+        self.camera_switch_button.disconnect()
+        self.camera_switch_button.clicked.connect(self.__toggle_camera_switch)
 
         self.add_button.disconnect()
         self.add_button.clicked.connect(self.open_add_sentence_dialog)
@@ -684,6 +690,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         ui_toggle_layout.addWidget(self.show_percentage_button)
         ui_toggle_layout.addWidget(self.show_score_button)
         ui_toggle_layout.addWidget(self.alarm_only_on_camera_ch_button)
+        ui_toggle_layout.addWidget(self.camera_switch_button)
         ui_toggle_box.setLayout(ui_toggle_layout)
         control_box.addWidget(ui_toggle_box)
 
@@ -898,12 +905,13 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         if worker_type == 'producer':
             payload = video_worker.get_video_producer().capture_frame()
             if payload is None:
-                time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
+                time.sleep(0.001)  # Adding a small sleep to avoid busy-waiting
+                pass
 
             return payload
         elif worker_type == 'consumer':
             if payload is None:
-                time.sleep(0.1)  # Adding a small sleep to avoid busy-waiting
+                time.sleep(0.001)  # Adding a small sleep to avoid busy-waiting
                 return channel_idx
 
             [channel_idx, frame, fps] = payload
@@ -1009,8 +1017,24 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
     def __toggle_score(self):
         self.ui_config.show_score = self.show_score_button.isChecked()
 
-    def __toggle_alram_only_on_camera_ch(self):
+    def __toggle_alarm_only_on_camera_ch(self):
         self.ui_config.alarm_only_on_camera_ch = self.alarm_only_on_camera_ch_button.isChecked()
+
+    def __toggle_camera_switch(self):
+        self.ui_config.camera_switch = self.camera_switch_button.isChecked()
+
+        # camera switch changed
+        if self.ui_config.camera_mode:
+            for video_worker in self.__video_worker_list:
+                video_producer = video_worker.get_video_producer()
+                video_consumer = video_worker.get_video_consumer()
+                if video_producer.is_camera_source():
+                    if self.ui_config.camera_switch:
+                        video_producer.resume()
+                        video_consumer.resume()
+                    else:
+                        video_producer.pause()
+                        video_consumer.pause()
 
     def update_scaled_video_frame(self, channel_idx: int, qt_img):
         self.video_label_list[channel_idx].setPixmap(QPixmap.fromImage(qt_img))

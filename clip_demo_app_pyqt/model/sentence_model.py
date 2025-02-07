@@ -90,6 +90,38 @@ class AlarmInfo:
         }
 
 
+class ServerEventInfo:
+    def __init__(self, enabled: bool = False, event_type: str = "UNDEFINED", source: str = "#E8B849"):
+        self.__enabled = enabled
+        self.__event_type = event_type
+        self.__source = source
+
+    def setEnableStatus(self, enabled: bool):
+        self.__enabled = enabled
+
+    def setEventType(self, event_type: str):
+        self.__event_type = event_type
+
+    def setSource(self, source: str):
+        self.__source = source
+
+    def getEnableStatus(self) -> bool:
+        return self.__enabled
+
+    def getEventType(self) -> str:
+        return self.__event_type
+
+    def getSource(self) -> int:
+        return self.__source
+
+    def to_dict(self):
+        return {
+            "enabled": self.__enabled,
+            "event_type": self.__event_type,
+            "source": self.__source
+        }
+
+
 class Sentence:
     __disabled = False
 
