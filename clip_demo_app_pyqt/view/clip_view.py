@@ -690,7 +690,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         ui_toggle_layout.addWidget(self.show_percentage_button)
         ui_toggle_layout.addWidget(self.show_score_button)
         ui_toggle_layout.addWidget(self.alarm_only_on_camera_ch_button)
-        ui_toggle_layout.addWidget(self.camera_switch_button)
+        if self.ui_config.camera_mode:
+            ui_toggle_layout.addWidget(self.camera_switch_button)
         ui_toggle_box.setLayout(ui_toggle_layout)
         control_box.addWidget(ui_toggle_box)
 

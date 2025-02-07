@@ -215,7 +215,8 @@ class SettingsView(QMainWindow):
         enriched_path_list = []
         for path_list in video_path_lists:
             for path in path_list:
-                enriched_path_list.append(path)
+                if not str(path).startswith("rtsp"):
+                    enriched_path_list.append(path)
         video_path_lists_for_single.append(enriched_path_list)
         return video_path_lists_for_single
 
