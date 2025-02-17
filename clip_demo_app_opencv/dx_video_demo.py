@@ -5,14 +5,18 @@ import time
 
 import numpy as np
 import torch
-from pia.model import PiaONNXTensorRTModel
-from sub_clip4clip.modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
 from tqdm import tqdm
 
 import cv2
 import threading
 
 from dx_engine import InferenceEngine
+
+import os
+project_path = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(project_path)
+from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
+from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
 
 def get_args():
     # fmt: off
@@ -153,8 +157,6 @@ class DXVideoEncoder():
             ret.append(o)
         
         z = torch.cat(ret, dim=0)
-        print(z.shape)
-        print(z.dtype)
         
         return z
     
@@ -207,7 +209,9 @@ class DXVideoEncoder():
     
 
 def main():
-    from sub_clip4clip.dataloaders.rawvideo_util import RawVideoExtractorCV2
+    project_path = os.path.dirname(os.path.dirname(__file__))
+    sys.path.append(project_path)
+    from clip_demo_app_opencv.rawvideo_util import RawVideoExtractorCV2
     
     SPECIAL_TOKEN = {
         "CLS_TOKEN": "<|startoftext|>",
@@ -226,7 +230,7 @@ def main():
     video_extractor_time_s = time.perf_counter_ns()
     
     video_extractor = RawVideoExtractorCV2(
-        framerate=1.0, size=224
+        framerate=1, size=224
     )
     
     video_extractor_time_e = time.perf_counter_ns()
@@ -234,14 +238,14 @@ def main():
     model_load_time_s = time.perf_counter_ns()
     
     # Set up ONNX Models (Used for Inference)
-    video_encoder = PiaONNXTensorRTModel(
-        model_path=args.video_encoder_onnx, device=device
+    video_encoder = ONNXModel(
+        model_path=args.video_encoder_onnx
     )
-    token_embedder = PiaONNXTensorRTModel(
-        model_path=args.token_embedder_onnx, device=device
+    token_embedder = ONNXModel(
+        model_path=args.token_embedder_onnx
     )
-    text_encoder = PiaONNXTensorRTModel(
-        model_path=args.text_encoder_onnx, device=device
+    text_encoder = ONNXModel(
+        model_path=args.text_encoder_onnx
     )
     dx_video_encoder = DXVideoEncoder(args.video_encoder_dxnn)
     
@@ -314,26 +318,18 @@ def main():
     for i in tqdm(range(len(gt_text_list))):
         gt_text_sample = gt_text_list[i]
         
-        tokenizer_time_s = time.perf_counter_ns()
-        # Get Token,
-        # ex ) "some one talking about top ten movies of the year" 
-        #      -> [some, one, talking, about, top, ten, movies, of, the, year]
-        gt_text_token = ClipTokenizer().tokenize(gt_text_sample)
-        
-        tokenizer_time_e = time.perf_counter_ns()
-        t_text_tokenizer_list.append(tokenizer_time_e - tokenizer_time_s)
-        
-        gt_text_token = [SPECIAL_TOKEN["CLS_TOKEN"]] + gt_text_token
-        total_length_with_class = max_words - 1
-        if len(gt_text_token) > total_length_with_class:
-            gt_text_token = gt_text_token[:total_length_with_class]
-        gt_text_token = gt_text_token + [SPECIAL_TOKEN["SEP_TOKEN"]]
-        
         token_to_id_time_s = time.perf_counter_ns()
-        
+        # Get Token's IDs,
         # 9 text ids : number of token ids
         # token to ids (using by "bpe_simple_vocab_16e6.txt.gz")
-        raw_text_data = ClipTokenizer().convert_tokens_to_ids(gt_text_token)
+        # ex ) "some one talking about top ten movies of the year" 
+        #      -> [some, one, talking, about, top, ten, movies, of, the, year]
+        #      slice up to 30 words (SPECIAL_TOKEN["CAL_TOKEN"] + " " + orignal tokens[:30] + " " + SPECIAL_TOKEN["SEP_TOKEN"])
+        #      -> [0, 1, 2, 3, 5, 6, 7, 8, 9, eof]
+        gt_text_sample = gt_text_sample if len(gt_text_sample.split(" ")) < max_words - 1 else str.join(gt_text_sample.split(" ")[:max_words - 2])
+        gt_text_sample = SPECIAL_TOKEN["CLS_TOKEN"] + " " + gt_text_sample + " " + SPECIAL_TOKEN["SEP_TOKEN"]
+        gt_text_token_ids = ClipTokenizer().encode(gt_text_sample)
+        raw_text_data = gt_text_token_ids
         token_to_id_time_e = time.perf_counter_ns()
         t_text_token_to_id.append(token_to_id_time_e - token_to_id_time_s)
         

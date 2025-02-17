@@ -8,6 +8,9 @@ class DXVideoEncoder:
     def __init__(self, model_path: str):
         self.ie = InferenceEngine(model_path)
 
+    def __del__(self):
+        print("DXVideoEncoder 객체가 삭제됩니다!")  # 가비지 컬렉션 확인용
+
     # def register_callback(self, func):
     #     self.ie.RegisterCallBack(func)
     

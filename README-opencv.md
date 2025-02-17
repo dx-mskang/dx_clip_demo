@@ -60,15 +60,15 @@ assets
 #### 1. Set up Virtual Environment
 Using Conda:
 ```bash
-conda create -n pia-package-executor-opencv python=3.11
-conda activate pia-package-executor-opencv
+conda create -n venv-opencv python=3.11
+conda activate venv-opencv
 ```
 
 Using venv (python3-venv):
 If you are using venv instead of Conda, activate the virtual environment:
 ```bash
-python3.11 -m venv pia-package-executor-opencv
-source ./pia-package-executor-opencv/bin/activate
+python3.11 -m venv venv-opencv
+source ./venv-opencv/bin/activate
 ```
 
 #### 2. Install PIA Space AI Packages
@@ -112,15 +112,15 @@ Ensure you are using Python 3.11.
 #### 1. Activate Python virtual environment (Conda or venv)
 Using Conda: 
 ```bash
-conda create -n pia-package-executor-opencv python=3.11
-conda activate pia-package-executor-opencv
+conda create -n venv-opencv python=3.11
+conda activate venv-opencv
 ```
 
 Using venv (python3-venv):
 If you are using venv instead of Conda, activate the virtual environment.
 ```bash
-python3.11 -m venv pia-package-executor-opencv
-source ./pia-package-executor-opencv/bin/activate
+python3.11 -m venv venv-opencv
+source ./venv-opencv/bin/activate
 ```
 
 #### 2. Install dx_engine (DX-Runtime Python pacakge)
@@ -159,13 +159,13 @@ output = ie.run(input)
 #### 1. Activate PIA Space AI Packages (python virtual environments)
 Using Conda:
 ```bash
-conda activate pia-package-executor-opencv
+conda activate venv-opencv
 ```
 
 Using venv (python3-venv):
 If you are using venv instead of Conda, activate the virtual environment.
 ```bash
-source pia-package-executor-opencv/bin/activate
+source venv-opencv/bin/activate
 ```
 
 #### 2. Run Real Time Multi Channel Demo (16 channel - Average of outputs)

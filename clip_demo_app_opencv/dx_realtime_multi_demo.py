@@ -7,8 +7,12 @@ import numpy as np
 import torch
 from PIL import Image
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
-from pia.model import PiaONNXTensorRTModel
-from sub_clip4clip.modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
+
+project_path = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(project_path)
+from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
+
+from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
 from tqdm import tqdm
 
 import cv2
@@ -100,13 +104,9 @@ def get_text_vectors(text_list:List[str], embedder, encoder):
     ret = []
     for i in tqdm(range(len(text_list))):
         text = text_list[i]
-        token = ClipTokenizer().tokenize(text)
-        token = [SPECIAL_TOKEN["CLS_TOKEN"]] + token
-        total_length_with_class = MAX_WORDS - 1
-        if len(token) > total_length_with_class:
-            token = token[:total_length_with_class]
-        token = token + [SPECIAL_TOKEN["SEP_TOKEN"]]
-        token_ids = ClipTokenizer().convert_tokens_to_ids(token)
+        text = text if len(text.split(" ")) < MAX_WORDS - 1 else str.join(text.split(" ")[:MAX_WORDS - 2])
+        text = SPECIAL_TOKEN["CLS_TOKEN"] + " " + text + " " + SPECIAL_TOKEN["SEP_TOKEN"]
+        token_ids = ClipTokenizer().encode(text)
         token_ids_mask = [1] * len(token_ids) + [0] * (
                             MAX_WORDS - len(token_ids)
                         )
@@ -450,11 +450,11 @@ def main():
 
     dxnn_video_encoder = DXVideoEncoder(args.video_encoder_dxnn)
     
-    token_embedder = PiaONNXTensorRTModel(
-        model_path=args.token_embedder_onnx, device=DEVICE
+    token_embedder = ONNXModel(
+        model_path=args.token_embedder_onnx
     )
-    text_encoder = PiaONNXTensorRTModel(
-        model_path=args.text_encoder_onnx, device=DEVICE
+    text_encoder = ONNXModel(
+        model_path=args.text_encoder_onnx
     )
 
     gt_video_path_lists = [

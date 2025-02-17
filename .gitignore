@@ -1,7 +1,7 @@
 .idea
 .vscode
 /assets/
-pia-package-executor*/
+venv*/
 profiler.json
 .venv/
 
@@ -14,3 +14,4 @@ __pycache__/
 **/docs/docs_web/
 
 clip_demo_app_pyqt/data/data.json
+clip-*/*

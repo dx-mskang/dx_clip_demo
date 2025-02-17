@@ -5,19 +5,17 @@ from collections import deque
 from typing import Literal
 
 import cv2
+import onnx
 import numpy as np
 import pandas as pd
 import torch
-from pia.ai.tasks.T2VRet.base import T2VRetConfig
-from pia.ai.tasks.T2VRet.models.clip4clip.main import Clip4Clip
-from pia.ai.tasks.T2VRet.models.clip4clip.model import CLIP4Clip
-from pia.model import PiaONNXTensorRTModel, PiaTorchModel
-from sub_clip4clip.dataloaders.dataloader_msrvtt_retrieval import MSRVTT_DataLoader
-from sub_clip4clip.dataloaders.utils import get_captions_list, get_video_filenames_list
-from sub_clip4clip.metrics import compute_metrics
-from sub_clip4clip.modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
-from tqdm import tqdm
+project_path = os.path.dirname(__file__)
+sys.path.append(project_path)
+from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
 
+from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
+from tqdm import tqdm
+from dx_engine import InferenceEngine
 
 def get_args():
     # fmt: off
@@ -53,18 +51,62 @@ def get_device():
         return "cpu"
 
 
+def preprocess_numpy(
+    x: np.ndarray,
+    mul_val: np.ndarray = np.float32([64.75055694580078]),
+    add_val: np.ndarray = np.float32([-11.950003623962402]),
+) -> np.ndarray:
+    x = x.astype(np.float32)
+    x = x * mul_val + add_val
+    x = x.round().clip(-128, 127)
+    x = x.astype(np.int8)
+    x = np.reshape(x, [1, 3, 7, 32, 7, 32])
+    x = np.transpose(x, [0, 2, 4, 3, 5, 1])
+    x = np.reshape(x, [1, 49, 48, 64])
+    x = np.transpose(x, [0, 2, 1, 3])
+    return x
+
+
+def preprocess_torch(
+    x: torch.Tensor,
+    mul_val: torch.Tensor = torch.FloatTensor([64.75055694580078]),
+    add_val: torch.Tensor = torch.FloatTensor([-11.950003623962402]),
+) -> torch.Tensor:
+    x = x.to(torch.float32)
+    x = x * mul_val + add_val
+    x = x.round().clip(-128, 127)
+    x = x.to(torch.int8)
+    x = torch.reshape(x, [1, 3, 7, 32, 7, 32])
+    x = torch.permute(x, [0, 2, 4, 3, 5, 1])
+    x = torch.reshape(x, [1, 49, 48, 64])
+    x = torch.permute(x, [0, 2, 1, 3])
+    return x
+
+
+def postprocess_numpy(x: np.ndarray) -> np.ndarray:
+    assert len(x.shape) == 3
+    x = x[:, 0]
+    x = x / np.linalg.norm(x, axis=-1, keepdims=True)
+    return x
+
+
+def postprocess_torch(x: torch.Tensor) -> torch.Tensor:
+    assert len(x.shape) == 3
+    x = x[:, 0]
+    x = x / torch.norm(x, dim=-1, keepdim=True)
+    return x
+
+
 def clip4clip_onnx_sim_matrix(
     device: Literal["cuda", "cpu", "mps"],
-    video_encoder: PiaONNXTensorRTModel,
-    text_encoder: PiaONNXTensorRTModel,
-    token_embedder: PiaONNXTensorRTModel,
+    video_encoder: ONNXModel,
+    text_encoder: ONNXModel,
+    token_embedder: ONNXModel,
     torch_model: PiaTorchModel,
     dataset_args: argparse.Namespace,
 ):
 
-    def _fill_zero_dequeue(
-        frames_deque: deque, height: int, width: int, channel: int, dtype: type
-    ):
+    def _fill_zero_dequeue(frames_deque: deque, height: int, width: int, channel: int, dtype: type):
         zero_frame = np.zeros((height, width, channel), dtype=dtype)
         for _ in range(frames_deque.maxlen):
             frames_deque.append(zero_frame)
@@ -119,9 +161,7 @@ def clip4clip_onnx_sim_matrix(
             #   Outputs
             #       - vid_preprocessed: [Num chunks=1, Temporal size, Channel, Height, Width]
             #       - vid_mask: [Num chunks=1, Temporal size]
-            vid_preprocessed, vid_mask = clip4clip_main.video_preprocess(
-                video=input_frames_chunk
-            )
+            vid_preprocessed, vid_mask = clip4clip_main.video_preprocess(video=input_frames_chunk)
 
             # Encode Video
             #   Inputs:
@@ -131,10 +171,20 @@ def clip4clip_onnx_sim_matrix(
             #       - visual_output: [Num frames, 512]
             #       - visual_output(after unsqueezing): [1, Num frames, 512]
             batch, frame, channel, height, width = vid_preprocessed.shape
-            vid_preprocessed = vid_preprocessed.reshape(
-                batch * frame, channel, height, width
-            )
-            visual_output = video_encoder(d=vid_preprocessed)
+            vid_preprocessed = vid_preprocessed.reshape(batch * frame, channel, height, width)
+
+            outputs = []
+            for i in range(len(vid_preprocessed)):
+                x = vid_preprocessed[i : i + 1]
+                x = x.numpy()
+                x = preprocess_numpy(x)
+                x = np.ascontiguousarray(x)
+                o = video_encoder.run([x])[0]
+                o = postprocess_numpy(o)
+                o = torch.from_numpy(o)
+                outputs.append(o)
+                
+            visual_output = torch.cat(outputs, dim=0)
             visual_output = visual_output.unsqueeze(0)
 
             assert visual_output.shape == (1, torch_model.config.temporal_size, 512)
@@ -160,9 +210,11 @@ def clip4clip_onnx_sim_matrix(
         return vis_vector_list, vid_mask_list
 
     # Import `Clip4Clip` class to Utilize its Functions
+    print("Clip4Clip Main")
     clip4clip_main = Clip4Clip(config=torch_model.config)
 
     # Import `CLIP4Clip` class to Utilize its Functions
+    print("Clip4Clip Model")
     state_dict = torch.load(torch_model.config.model_path, map_location=device)
     clip4clip_model = CLIP4Clip(clip_state_dict=state_dict, task_cfg=torch_model.config)
 
@@ -179,10 +231,7 @@ def clip4clip_onnx_sim_matrix(
     )
     vid_filenames = get_video_filenames_list(dataloader=msrvtt_testset)
     vid_ext = os.listdir(dataset_args.features_path)[0].split(".")[-1]
-    vid_filepath_list = [
-        f"{dataset_args.features_path}/{vid_filename}.{vid_ext}"
-        for vid_filename in vid_filenames
-    ]
+    vid_filepath_list = [f"{dataset_args.features_path}/{vid_filename}.{vid_ext}" for vid_filename in vid_filenames]
     input_txt_list = get_captions_list(dataloader=msrvtt_testset)
 
     # Preprocess Captions
@@ -196,10 +245,14 @@ def clip4clip_onnx_sim_matrix(
     txt_mask = txt_mask.to(dtype=torch.float32)
 
     # Encode Texts
+    print("Encode Texts!")
+    print("Token Embedding")
     token_embedding = token_embedder(d=txt_ids)
+    print("Text Encoding")
     txt_vectors = text_encoder(d=[token_embedding, txt_mask])
 
     # Process All Videos
+    print("Process All Videos!")
     num_caps = txt_vectors.shape[0]
     tensor_sim_matrix = torch.empty((num_caps, 0), device=device)
     for vid_filepath in tqdm(vid_filepath_list, desc="Calculating Similarity Matrix"):
@@ -238,9 +291,7 @@ def clip4clip_onnx_sim_matrix(
                 video_mask=vid_mask,
                 sim_header=clip4clip_main.config.sim_header,
             )
-            sim_scores_for_video = torch.cat(
-                (sim_scores_for_video, similarity_scores_for_window), dim=1
-            )
+            sim_scores_for_video = torch.cat((sim_scores_for_video, similarity_scores_for_window), dim=1)
 
         # Aggregate Similarity Scores into Representitive One Value(Score) for Each Video
         #   Inputs
@@ -258,9 +309,7 @@ def clip4clip_onnx_sim_matrix(
     # Save Similarity Matrix
     np_sim_matrix = tensor_sim_matrix.cpu().numpy()
 
-    video_filename_list = [
-        os.path.basename(video_filepath) for video_filepath in vid_filepath_list
-    ]
+    video_filename_list = [os.path.basename(video_filepath) for video_filepath in vid_filepath_list]
     df_sim_matrix = pd.DataFrame(
         np_sim_matrix,
         columns=video_filename_list,
@@ -290,25 +339,19 @@ def main():
     device = get_device()
 
     # Set up ONNX Models (Used for Inference)
-    video_encoder = PiaONNXTensorRTModel(
-        model_path=args.video_encoder_onnx, device=device
-    )
-    text_encoder = PiaONNXTensorRTModel(
-        model_path=args.text_encoder_onnx, device=device
-    )
-    token_embedder = PiaONNXTensorRTModel(
-        model_path=args.token_embedder_onnx, device=device
-    )
+    video_encoder = InferenceEngine(model_path=args.video_encoder_onnx)
+    text_encoder = ONNXModel(model_path=args.text_encoder_onnx)
+    token_embedder = ONNXModel(model_path=args.token_embedder_onnx)
+
     # Set up Torch Model (Only Used for Configurations)
     torch_model_config = T2VRetConfig(
         model_path=args.torch_model,
         device=device,
     )
-    torch_model = PiaTorchModel(
-        target_task=1, target_model=0, config=torch_model_config
-    )
+    torch_model = PiaTorchModel(target_task=1, target_model=0, config=torch_model_config)
 
     # Set up Dataset Arguments
+    print("Set up dataset Arguments")
     dataset_args = argparse.Namespace(
         val_csv=args.val_csv,
         features_path=args.features_path,

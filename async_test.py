@@ -47,7 +47,7 @@ def register_callback(outputs, arguments):
         print(x.shape)
         result_queue.get(timeout=5) 
         result_queue.task_done() 
-    return 0;
+    return 0
 
 class TestArguments:
     def __init__(self, ie: InferenceEngine, name, age, unique_id):
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     start_time = time.time()
     # Run inference for the number of loops specified
     for loop in range(args.loops):
-        test_arg = test_args[unique_id]
+        test_arg:TestArguments = test_args[unique_id]
         x = input_data[0].astype(np.float32)
         x = x * np.float32([64.75055694580078]) + np.float32([-11.950003623962402])
         x = x.round().clip(-128, 127)

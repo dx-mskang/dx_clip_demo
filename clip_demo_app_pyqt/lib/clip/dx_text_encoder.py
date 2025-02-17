@@ -2,12 +2,31 @@ import sys
 import time
 
 import torch
-from pia.model import PiaONNXTensorRTModel
-from sub_clip4clip.modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
+from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
 from tqdm import tqdm
 
 from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
-
+import onnxruntime
+import os
+class ONNXModel(torch.nn.Module):
+    def __init__(self, model_path: str):
+        super().__init__()
+        assert os.path.isfile(model_path), f"can't load model file at {model_path}"
+        self.model = onnxruntime.InferenceSession(model_path)
+        self.output_names = [x.name for x in self.model.get_outputs()]
+    
+    def forward(self, x):
+        if len(self.model.get_inputs()) != 1:
+            inputs = {}
+            for i in range(len(self.model.get_inputs())):
+                if abs(len(self.model.get_inputs()[i].shape) - len(x[i].shape)) == 1 :
+                    x[i] = x[i][0,...]
+                inputs[self.model.get_inputs()[i].name] = x[i].cpu().numpy()
+        else:
+            x = x.cpu().numpy()
+            inputs = {self.model.get_inputs()[0].name: x}
+        pred = self.model.run(self.output_names, inputs)
+        return torch.Tensor(pred, device="cpu")
 
 class TextVectorUtil:
     SPECIAL_TOKEN = {
@@ -28,11 +47,11 @@ class TextVectorUtil:
 
     model_load_time_s = time.perf_counter_ns()
 
-    token_embedder = PiaONNXTensorRTModel(
-        model_path=ParserUtil.get_args().token_embedder_onnx, device=DEVICE
+    token_embedder = ONNXModel(
+        model_path=ParserUtil.get_args().token_embedder_onnx
     )
-    text_encoder = PiaONNXTensorRTModel(
-        model_path=ParserUtil.get_args().text_encoder_onnx, device=DEVICE
+    text_encoder = ONNXModel(
+        model_path=ParserUtil.get_args().text_encoder_onnx
     )
 
     model_load_time_e = time.perf_counter_ns()
@@ -49,13 +68,9 @@ class TextVectorUtil:
 
     @classmethod
     def get_text_vector(cls, text: str):
-        token = ClipTokenizer().tokenize(text)
-        token = [cls.SPECIAL_TOKEN["CLS_TOKEN"]] + token
-        total_length_with_class = cls.MAX_WORDS - 1
-        if len(token) > total_length_with_class:
-            token = token[:total_length_with_class]
-        token = token + [cls.SPECIAL_TOKEN["SEP_TOKEN"]]
-        token_ids = ClipTokenizer().convert_tokens_to_ids(token)
+        text = text if len(text.split(" ")) < cls.MAX_WORDS - 1 else str.join(text.split(" ")[:cls.MAX_WORDS - 2])
+        text = cls.SPECIAL_TOKEN["CLS_TOKEN"] + " " + text + " " + cls.SPECIAL_TOKEN["SEP_TOKEN"]
+        token_ids = ClipTokenizer().encode(text)
         token_ids_mask = [1] * len(token_ids) + [0] * (
                 cls.MAX_WORDS - len(token_ids)
         )

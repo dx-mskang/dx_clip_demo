@@ -54,15 +54,15 @@ assets
 #### 1. Set up Virtual Environment
 Using Conda:
 ```bash
-conda create -n pia-package-executor-pyqt python=3.11
-conda activate pia-package-executor-pyqt
+conda create -n venv-pyqt python=3.11
+conda activate venv-pyqt
 ```
 
 Using venv (python3-venv):
 If you are using venv instead of Conda, activate the virtual environment:
 ```bash
-python3.11 -m venv pia-package-executor-pyqt
-source ./pia-package-executor-pyqt/bin/activate
+python3.11 -m venv venv-pyqt
+source ./venv-pyqt/bin/activate
 ```
 
 #### 2. Install PIA Space AI Packages
@@ -111,15 +111,15 @@ Ensure you are using Python 3.11.
 #### 1. Activate Python virtual environment (Conda or venv)
 Using Conda: 
 ```bash
-conda create -n pia-package-executor-pyqt python=3.11
-conda activate pia-package-executor-pyqt
+conda create -n venv-pyqt python=3.11
+conda activate venv-pyqt
 ```
 
 Using venv (python3-venv)
 If you are using venv instead of Conda, activate the virtual environment:
 ```bash
-python3.11 -m venv pia-package-executor-pyqt
-source ./pia-package-executor-pyqt/bin/activate
+python3.11 -m venv venv-pyqt
+source ./venv-pyqt/bin/activate
 ```
 
 #### 2. Install dx_engine(DX-Runtime Python pacakge)
@@ -163,13 +163,13 @@ output = ie.run(input)
 #### 1. Activate PIA Space AI Packages (python virtual environments)
 Using Conda:
 ```bash
-conda activate pia-package-executor-pyqt
+conda activate venv-pyqt
 ```
 
 Using venv (python3-venv):
 If you are using `venv` instead of `Conda`, activate the virtual environment.
 ```bash
-source pia-package-executor-pyqt/bin/activate
+source venv-pyqt/bin/activate
 ```
 
 #### 2. Install Demo App dependency packages

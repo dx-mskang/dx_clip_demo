@@ -1,0 +1,17 @@
+certifi
+ftfy
+numpy
+onnxruntime
+opencv-python-headless
+overrides
+pandas
+pyqt-toast-notification
+PyQt5
+QDarkStyle
+QtPy
+regex
+torch
+torchaudio
+torchvision
+tqdm
+debugpy

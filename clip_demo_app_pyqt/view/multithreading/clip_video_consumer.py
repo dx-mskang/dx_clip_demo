@@ -51,7 +51,6 @@ class ClipVideoConsumer(VideoConsumer):
         self.inference_engine_async_mode = inference_engine_async_mode
         
         if self.inference_engine_async_mode:
-            # self.__dxnn_video_encoder.register_callback(self.pp_callback)
             self.video_pred = np.array((1, 512), dtype=np.float32) * 0.0
 
     @overrides()

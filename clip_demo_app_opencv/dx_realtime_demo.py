@@ -7,8 +7,12 @@ import numpy as np
 import torch
 from PIL import Image
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
-from pia.model import PiaONNXTensorRTModel
-from sub_clip4clip.modules.tokenization_clip import SimpleTokenizer as ClipTokenizer
+
+project_path = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(project_path)
+from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
+
+from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
 from tqdm import tqdm
 
 import cv2
@@ -462,11 +466,11 @@ def main():
 
     dxnn_video_encoder = DXVideoEncoder(args.video_encoder_dxnn)
 
-    token_embedder = PiaONNXTensorRTModel(
-        model_path=args.token_embedder_onnx, device=device
+    token_embedder = ONNXModel(
+        model_path=args.token_embedder_onnx
     )
-    text_encoder = PiaONNXTensorRTModel(
-        model_path=args.text_encoder_onnx, device=device
+    text_encoder = ONNXModel(
+        model_path=args.text_encoder_onnx
     )
 
     model_load_time_e = time.perf_counter_ns()
@@ -529,21 +533,17 @@ def main():
     run_sol_time_t = []
     for i in tqdm(range(len(gt_text_list))):
         gt_text_sample = gt_text_list[i]
-
-        # Get Token,
-        # ex ) "some one talking about top ten movies of the year" 
-        #      -> [some, one, talking, about, top, ten, movies, of, the, year]
-        gt_text_token = ClipTokenizer().tokenize(gt_text_sample)
-
-        gt_text_token = [SPECIAL_TOKEN["CLS_TOKEN"]] + gt_text_token
-        total_length_with_class = max_words - 1
-        if len(gt_text_token) > total_length_with_class:
-            gt_text_token = gt_text_token[:total_length_with_class]
-        gt_text_token = gt_text_token + [SPECIAL_TOKEN["SEP_TOKEN"]]
-
+        # Get Token's IDs,
         # 9 text ids : number of token ids
         # token to ids (using by "bpe_simple_vocab_16e6.txt.gz")
-        raw_text_data = ClipTokenizer().convert_tokens_to_ids(gt_text_token)
+        # ex ) "some one talking about top ten movies of the year" 
+        #      -> [some, one, talking, about, top, ten, movies, of, the, year]
+        #      slice up to 30 words (SPECIAL_TOKEN["CAL_TOKEN"] + " " + orignal tokens[:30] + " " + SPECIAL_TOKEN["SEP_TOKEN"])
+        #      -> [0, 1, 2, 3, 5, 6, 7, 8, 9, eof]
+        gt_text_sample = gt_text_sample if len(gt_text_sample.split(" ")) < max_words - 1 else str.join(gt_text_sample.split(" ")[:max_words - 2])
+        gt_text_sample = SPECIAL_TOKEN["CLS_TOKEN"] + " " + gt_text_sample + " " + SPECIAL_TOKEN["SEP_TOKEN"]
+        gt_text_token_ids = ClipTokenizer().encode(gt_text_sample)
+        raw_text_data = gt_text_token_ids
 
         text_input_mask = [1] * len(raw_text_data) + [0] * (
                 max_words - len(raw_text_data)
@@ -621,13 +621,10 @@ def main():
                 video_thread.pop_text_vector(-1)
             global_input = ""
         elif global_input != "":
-            gt_text_token = ClipTokenizer().tokenize(global_input)
-            gt_text_token = [SPECIAL_TOKEN["CLS_TOKEN"]] + gt_text_token
-            total_length_with_class = max_words - 1
-            if len(gt_text_token) > total_length_with_class:
-                gt_text_token = gt_text_token[:total_length_with_class]
-            gt_text_token = gt_text_token + [SPECIAL_TOKEN["SEP_TOKEN"]]
-            raw_text_data = ClipTokenizer().convert_tokens_to_ids(gt_text_token)
+            gt_text_token = global_input if len(global_input.split(" ")) < max_words - 1 else str.join(global_input.split(" ")[:max_words - 2])
+            gt_text_token = SPECIAL_TOKEN["CLS_TOKEN"] + " " + gt_text_token + " " + SPECIAL_TOKEN["SEP_TOKEN"]
+            gt_text_token_ids = ClipTokenizer().encode(gt_text_token)
+            raw_text_data = gt_text_token_ids
             text_input_mask = [1] * len(raw_text_data) + [0] * (
                     max_words - len(raw_text_data)
             )
