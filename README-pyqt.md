@@ -1,17 +1,11 @@
 # Environment Setup
 
-## PIA DEMO using PyQT5 UI Framework
+## CLIP DEMO using PyQT5 UI Framework
 
 ---
 ### Pre-Requisite
-Ensure you are using Python 3.11.
-```bash
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt-get install -y python3.11 python3.11-dev python3.11-venv libxcb-xinerama0
-```
-
 #### Get assets (input videos and prebuilt CLIP AI model) files
-Extract the `pia_assets.tar.gz` file, which was provided separately and is not included in the distributed source code.
+Extract the `clip_assets.tar.gz` file, which was provided separately and is not included in the distributed source code.
 
 ```bash
 tar -zxvf pia_assets.tar.gz 
@@ -19,6 +13,24 @@ tar -zxvf pia_assets.tar.gz
 File structure in `./assets/`:
 ```
 assets
+├── CLIP
+│   ├── build
+│   ├── clip
+│   ├── clip.egg-info
+│   ├── CLIP.png
+│   ├── data
+│   ├── hubconf.py
+│   ├── LICENSE
+│   ├── MANIFEST.in
+│   ├── model-card.md
+│   ├── notebooks
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── setup.py
+│   └── tests
+├── data
+│   ├── MSRVTT_JSFUSION_test.csv
+│   └── MSRVTT_Videos
 ├── demo_videos
 │   ├── crowded_in_subway.mp4
 │   ├── dam_explosion_short.mp4
@@ -36,179 +48,52 @@ assets
 │   ├── the_pile_of_sockets_is_smoky_and_on_fire.mp4
 │   ├── two_childrens_are_fighting.mp4
 │   └── violence_in_shopping_mall_short.mp4
+├── dx_engine-1.0.0-py3-none-any.whl
 ├── dxnn
-│   └── pia_vit_240814.dxnn
-├── onnx
-│   ├── embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
-│   ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
-│   └── visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
-└── pia_python_package
-    ├── pia-1.3.1+obf-py3-none-any.whl
-    ├── requirements.txt
-    └── sub_clip4clip-1.2.3+obf-py3-none-any.whl
+│   ├── pia_vit_240814.dxnn
+└── onnx
+    ├── embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
+    ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
+    └── visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
 ```
 
 ---
-### Setup PIA Space AI Packages
-
-#### 1. Set up Virtual Environment
-Using Conda:
-```bash
-conda create -n venv-pyqt python=3.11
-conda activate venv-pyqt
+### Setup Demo
+#### 1. Run setup script 
+Depending on the application runtime environment, an automated setup script can be used as shown below. For more details, please refer to the script's specifics.
+##### for Linux amd64
+```
+./scripts/amd64/setup_clip_demo_app_pyqt.sh --dxrt_src_path=<path_to_dxrt>
 ```
 
-Using venv (python3-venv):
-If you are using venv instead of Conda, activate the virtual environment:
-```bash
-python3.11 -m venv venv-pyqt
-source ./venv-pyqt/bin/activate
+##### for Linux aarch64 (OrangePi 5+ Ubuntu 22.04 OS)
+- for Linux aarch64 
+```
+./scripts/aarch64/setup_clip_demo_app_pyqt.sh --dxrt_src_path=<path_to_dxrt>
 ```
 
-#### 2. Install PIA Space AI Packages
-
-##### 2-1. Install Python dependency packages
-```bash
-pip install -r ./assets/pia_python_package/requirements.txt
+##### for Windows
 ```
-
-##### 2-2. Install PIA Space AI packages
-
-- for `linux amd64`
-  ```bash
-  pip install ./assets/pia_python_package/pia-1.3.1+obf-py3-none-any.whl
-  pip install ./assets/pia_python_package/sub_clip4clip-1.2.3+obf-py3-none-any.whl
-  ```
-
-
-(P.S) If you encounter an error installing pia-1.3.1+obf-py3-none-any.whl due to a 'decord' dependency issue (e.g., on OPi5+), refer to the solutions below:
-- for `OPi5+ or arm64`
-  - (Solution 1: Install Pre-built whl file)
-    - For OPi5+, run:
-      ```bash
-      pip install ./install_dep/opi5plus/decord-0.6.0-cp311-cp311-linux_aarch64.whl
-      ```
-  - <Solution 2: Manual build and install> 
-    - You can manually build and install 'decord' by following the instructions from the official guide at `https://github.com/dmlc/decord?tab=readme-ov-file#install-from-source`.  
-    - Alternatively, you can refer to the provided script `./install_dep/opi5plus/manual_build_and_install_decord_python_dep_package_opi5plus.sh` :
-      ```bash
-      cd ./install_dep/opi5plus
-      ./manual_build_and_install_decord_python_dep_package_opi5plus.sh
-      ```
-
-
-#### 3. Install `onnxruntime`
-Install `onnxruntime` using the following command:
-
-```bash
-pip install onnxruntime
+.\scripts\x86_64_win\setup_clip_demo_app_pyqt.bat
 ```
----
-
-### Setup DX-RunTime python package
-Ensure you are using Python 3.11.
-
-#### 1. Activate Python virtual environment (Conda or venv)
-Using Conda: 
-```bash
-conda create -n venv-pyqt python=3.11
-conda activate venv-pyqt
-```
-
-Using venv (python3-venv)
-If you are using venv instead of Conda, activate the virtual environment:
-```bash
-python3.11 -m venv venv-pyqt
-source ./venv-pyqt/bin/activate
-```
-
-#### 2. Install dx_engine(DX-Runtime Python pacakge)
-- (Solution 1: Install Pre-built whl file)
-  - for `linux amd64`
-    ```bash
-    pip uninstall dx_engine
-    pip install ./install_dep/linux-amd64/dx_engine-0.0.1-py3-none-any.whl
-    ```
-  - for `OPi5+ or arm64`
-    ```
-    pip uninstall dx_engine
-    pip install ./install_dep/opi5plus/dx_engine-0.0.1-py3-none-any.whl
-    ```
-
-- (Solution 2: Manual build and install) 
-  ```bash
-  cd /your/dx_rt/source/path  # Verify your DX-RT source path and update it to the correct one!
-  ./build.sh
-  cd python_package
-  pip uninstall dx_engine
-  pip install .
-  ```
-
-  Make sure there is a file *_pydxrt.cpython-311-x86_64-linux-gnu.so* under folder */your/dx_rt/source/path/python_package/src/dx_engine/capi*    
-
-
-
-#### Example for using `dx_engine`
-```python
-from dx_engine import InferenceEngine
-your_model_path = "/your/model/path"
-ie = InferenceEngine(your_model_path)
-...
-output = ie.run(input)
-```
----
 
 ### Execute Demo
-
-#### 1. Activate PIA Space AI Packages (python virtual environments)
-Using Conda:
-```bash
-conda activate venv-pyqt
-```
-
-Using venv (python3-venv):
-If you are using `venv` instead of `Conda`, activate the virtual environment.
+#### 1. Activate python virtual environments
+##### for Linux
 ```bash
 source venv-pyqt/bin/activate
 ```
-
-#### 2. Install Demo App dependency packages
-
-- Install packages(gstreamer, qt5 multi media plugins for play mp3, mp4, gif files)
-```bash
-sudo apt-get install -y gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
-sudo apt-get install -y libqt5multimedia5-plugins
-sudo apt-get install -y libpulse-mainloop-glib0
-
+##### for Windows
+```
+venv-pyqt\bin\activate.bat
 ```
 
-- Install pip packages
-```bash
-pip install -r clip_demo_app_pyqt/requirements.txt
-```
-or
-```bash
-pip install pyqt-python-headless pyqt5 pyqt-toast-notification qdarkstyle overrides
-```
-
-(P.S)
-- If you cannot install `pyqt5` due to a `metadata-generation-failed` error on devices like OPi5+, try installing it with the following command:
-  ```bash
-  sudo apt-get install -y qt5-default qttools5-dev-tools
-  ```
-- If the installation of `pyqt5` hangs on devices like OPi5+, try running:
-  ```bash
-  pip install pyqt5 --config-settings --confirm-license= --verbose
-  ```
-
-#### 3. Run Real Time Demo (Average of outputs)
-This is a demo app applying the Clip model using `PyQT5`. After configuring settings in the `Settings` window, you can start the demo app by pressing the `Done` button.
-
+##### 2. Run command
 ```bash
 python -m clip_demo_app_pyqt.dx_realtime_demo_pyqt
 ```
 
-##### Setting options
+##### 3. Setting options
 1. **Assets Path**:
     - You can change the assets directory path.
 2. **Number of Channels (Single/Multi-channel Mode)**:

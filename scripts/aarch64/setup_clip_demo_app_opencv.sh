@@ -39,16 +39,15 @@ source ./venv-opencv/bin/activate
 
 ### Setup DX-RunTime python package
 #### 2. Install dx_engine (DX-Runtime Python package)
+pushd ${DXRT_SRC_PATH}
+./build.sh
 pushd ${DXRT_SRC_PATH}/python_package
 pip install .
 popd
+popd
 
 ### Setup Demo APP
-#### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
-sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-sync1 libxkbcommon-x11-0 libxcb-xkb1
-sudo apt-get install -y libqt5multimedia5-plugins libpulse-mainloop-glib0
-
-#### 4. Install pip packages
+#### 3. Install pip packages
 pip install -r requirements.opencv.txt
 pip install ./assets/CLIP
 

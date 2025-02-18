@@ -1099,7 +1099,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
 
         # TODO: send data to server refer to below
-        self.send_event_to_server(alarm_title, text, idx, score)
+        # self.send_event_to_server(alarm_title, text, idx, score)
 
         if self.ui_config.alarm_only_on_camera_ch and is_camera_source is False:
             # skip to show alarm when video channel is not camera source
@@ -1138,10 +1138,10 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         url = 'http://example.com/api'  # 서버 URL
 
         # TODO: send example
-        # print("=== SEND EVENT TO SERVER EXAM === \n" + xml_data.decode('utf-8'))
-        # response = requests.post(url, data=xml_data, headers=headers)
-        # print("서버 응답 코드:", response.status_code)
-        # print("서버 응답 내용:", response.text)
+        print("=== SEND EVENT TO SERVER EXAM === \n" + xml_data.decode('utf-8'))
+        response = requests.post(url, data=xml_data, headers=headers)
+        print("서버 응답 코드:", response.status_code)
+        print("서버 응답 내용:", response.text)
 
     def show_toast(self, text, title="Info", duration=3000, preset=ToastPreset.WARNING,
                    position=ToastPosition.BOTTOM_MIDDLE, color="#E8B849", font_size=9, media_path=None):

@@ -16,6 +16,7 @@ call venv-opencv\Scripts\activate.bat
 
 REM 2. Install pip packages
 pip install -r requirements.opencv.txt
+pip install ./assets/CLIP
 
 REM 3. Install DX-RunTime Python package
 REM pushd assets
