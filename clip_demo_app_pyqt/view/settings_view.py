@@ -1,7 +1,7 @@
 import math
 
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QLineEdit, QSpinBox, QCheckBox, QPushButton, QWidget, \
-    QGridLayout
+    QGridLayout, QComboBox, QGroupBox, QHBoxLayout
 from clip_demo_app_pyqt.common.config.ui_config import UIConfig
 
 
@@ -102,7 +102,7 @@ class SettingsView(QMainWindow):
         self.video_fps_sync_mode_checkbox = QCheckBox("Video FPS Sync Mode", self)
         self.video_fps_sync_mode_checkbox.setChecked(self.video_fps_sync_mode)
         layout.addWidget(self.video_fps_sync_mode_checkbox)
-        
+
         # Inference Engine RunAsync Mode checkbox
         self.inference_engine_async_mode_checkbox = QCheckBox("Inference RunAsync Mode", self)
         self.inference_engine_async_mode_checkbox.setChecked(self.inference_engine_async_mode)
@@ -122,6 +122,40 @@ class SettingsView(QMainWindow):
         self.show_each_fps_label_checkbox = QCheckBox("Display FPS for each video", self)
         self.show_each_fps_label_checkbox.setChecked(self.ui_config.show_each_fps_label)
         layout.addWidget(self.show_each_fps_label_checkbox)
+
+        # font setting grop - START
+        font_setting_box = QGroupBox("Font Setting")
+        font_setting_layout = QVBoxLayout()
+
+        font_setting_sub1_layout = QHBoxLayout()
+        font_setting_sub2_layout = QHBoxLayout()
+
+        # Dropdown for fit/word_wrap options
+        self.dynamic_font_mode_dropdown = QComboBox(self)
+        self.dynamic_font_mode_dropdown.addItem("fit")
+        self.dynamic_font_mode_dropdown.addItem("word_wrap")
+        self.dynamic_font_mode_dropdown.addItem("fit + min")
+        self.dynamic_font_mode_dropdown.addItem("fit + min + word_wrap")
+        self.dynamic_font_mode_dropdown.setCurrentText("fit")  # 기본값 'fit'
+        self.dynamic_font_mode_dropdown.currentTextChanged.connect(self.__on_layout_mode_change)
+        font_setting_sub1_layout.addWidget(QLabel("Text Layout Mode:"))
+        font_setting_sub1_layout.addWidget(self.dynamic_font_mode_dropdown)
+
+        # Minimum Font Size input (enabled only for 'fit' option)
+        self.min_font_size_label = QLabel("Minimum Font Size:")
+        self.min_font_size_input = QSpinBox(self)
+        self.min_font_size_input.setValue(self.ui_config.min_font_size)
+        self.min_font_size_input.setRange(5, 10)
+        self.min_font_size_input.setEnabled(False)
+        font_setting_sub2_layout.addWidget(self.min_font_size_label)
+        font_setting_sub2_layout.addWidget(self.min_font_size_input)
+
+        font_setting_layout.addLayout(font_setting_sub1_layout)
+        font_setting_layout.addLayout(font_setting_sub2_layout)
+
+        font_setting_box.setLayout(font_setting_layout)
+        layout.addWidget(font_setting_box)
+        # font setting grop - END
 
         # Done button
         self.done_button = QPushButton("Done", self)
@@ -150,6 +184,8 @@ class SettingsView(QMainWindow):
         self.ui_config.dark_theme = self.dark_theme_checkbox.isChecked()
         self.ui_config.merge_central_grid = self.merge_central_grid_checkbox.isChecked()
         self.ui_config.inference_engine_async_mode = self.inference_engine_async_mode_checkbox.isChecked()
+        self.ui_config.dynamic_font_mode = self.dynamic_font_mode_dropdown.currentText()
+        self.ui_config.min_font_size = self.min_font_size_input.value()
 
         # adjust video_grid_info, video_path_lists and num_channels
         if self.ui_config.merge_central_grid:
@@ -166,6 +202,13 @@ class SettingsView(QMainWindow):
 
     def start_main_app(self):
         self.success_cb(self)
+
+    def __on_layout_mode_change(self, text):
+        if "min" in text:
+            self.min_font_size_input.setEnabled(True)
+        else:
+            self.min_font_size_input.setEnabled(False)
+            
 
     @staticmethod
     def __adjust_video_path_lists(video_path_lists, number_of_channels, camera_mode, merged_video_grid_info):

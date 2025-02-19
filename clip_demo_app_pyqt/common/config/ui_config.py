@@ -50,6 +50,11 @@ class UIConfig:
     # sentence alarm
     sentence_alarm_font_size = 26
 
+    # dynamic font mode
+    dynamic_font_mode = "fit"
+    min_font_size = 8
+
+
 
 class UIHelper:
     def __init__(self, ctx: QMainWindow, ui_config: UIConfig, window_w: int=-1, window_h: int=-1):

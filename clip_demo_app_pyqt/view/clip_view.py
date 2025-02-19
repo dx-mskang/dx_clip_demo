@@ -9,7 +9,7 @@ from typing import List
 
 import qdarkstyle
 from PyQt5.QtCore import Qt, QObject, QEvent, QUrl, QTimer
-from PyQt5.QtGui import QPixmap, QFont, QColor, QMovie
+from PyQt5.QtGui import QPixmap, QFont, QColor, QMovie, QFontMetrics
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
@@ -1049,6 +1049,18 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             elif item.layout() is not None:
                 self.clear_layout(item.layout())
 
+    def __adjust_font_size_to_fit(self, label, max_width, min_font_size=None):
+        font = label.font()
+        font_metrics = QFontMetrics(font)
+
+        while font_metrics.horizontalAdvance(label.text()) > max_width and font.pointSize() > 1:
+            if min_font_size is not None and font.pointSize() <= min_font_size:
+                print("breaked!!!")
+                break
+            font.setPointSize(font.pointSize() - 1)
+            label.setFont(font)
+            font_metrics = QFontMetrics(font)
+
     def update_sentence_output(self, idx: int, text: str, progress: int, score: float,
                                alarm: bool, alarm_title: str, alarm_position: int, alarm_color: str,
                                media_alarm: bool, media_alarm_title: str, media_alarm_media_path: str,
@@ -1091,12 +1103,29 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         sentence_output_label = QLabel(text, self)
         sentence_output_label.setFont(font)
         sentence_output_label.setMinimumWidth(self.ui_helper.video_size[0])  # 너비 설정
+
         # sentence_output_label.setStyleSheet("border: 1px solid green; padding: 0px;")
         sentence_output_label.setContentsMargins(0, 0, 0, 0)
         sentence_output_label.setAlignment(Qt.AlignTop)
         sentence_output_box.addWidget(sentence_output_label)
 
         self.sentence_output_layout_list[idx].addLayout(sentence_output_box)
+
+        # adjust font size
+        if "fit" in self.ui_config.dynamic_font_mode:  # 너비 기준으로 자동 사이즈 조정
+            print("FIT")
+            parent_widget = sentence_output_box.parentWidget()
+            if parent_widget:
+                if "min" in self.ui_config.dynamic_font_mode:
+                    print("MIN")
+                    self.__adjust_font_size_to_fit(sentence_output_label, parent_widget.width(), self.ui_config.min_font_size)
+                else:
+                    self.__adjust_font_size_to_fit(sentence_output_label, parent_widget.width())
+        
+        if "word_wrap" in self.ui_config.dynamic_font_mode: # 줄바꿈 허용
+            print("WORD_WRAP")
+            sentence_output_label.setWordWrap(True)
+        
 
         # TODO: send data to server refer to below
         # self.send_event_to_server(alarm_title, text, idx, score)
@@ -1282,7 +1311,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             sentence_media_alarm_checkbox = QCheckBox("Media", self)
             sentence_media_alarm_checkbox.setChecked(sentence.get_media_alarm())
             sentence_media_alarm_checkbox.clicked.connect(lambda _, i=idx: self.toggle_media_alarm(i))
-            sentence_media_alarm_checkbox.setFixedWidth(40)
+            sentence_media_alarm_checkbox.setFixedWidth(60)
+            
             sentence_media_alarm_checkbox.setStyleSheet("font-size: 8px;")
             sentence_box.addWidget(sentence_media_alarm_checkbox)
 

@@ -121,3 +121,11 @@ python -m clip_demo_app_pyqt.dx_realtime_demo_pyqt
     - Set whether to apply the dark theme.
 11. **Display FPS for each video**:
     - In Multi-channel mode, you can set whether to display the current FPS for each channel.
+12. Font Settings
+  - **Text Layout Mode**  
+    - **fit**: Adjusts the font size to fit within the text box area. (Ensures all text is visible, even if there are multiple lines, but the font may become very small.)  
+    - **word_wrap**: Keeps the font size unchanged and wraps text onto new lines. (If there are multiple lines, some text may require scrolling to view.)  
+    - **fit + min**: Same as **fit**, but the font size will not go below the specified **Minimum Font Size**. (If the text is too long, it may be truncated.)  
+    - **fit + min + word_wrap**: Same as **fit + min**, but prevents text from being cut off by enabling line wrapping. (If there are multiple lines, some text may require scrolling to view.)  
+
+  - **Minimum Font Size**: Limits how much the font size can be reduced when `Text Layout Mode` includes `min`.  
