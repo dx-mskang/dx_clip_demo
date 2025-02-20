@@ -1113,7 +1113,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         # adjust font size
         if "fit" in self.ui_config.dynamic_font_mode:  # 너비 기준으로 자동 사이즈 조정
-            print("FIT")
             parent_widget = sentence_output_box.parentWidget()
             if parent_widget:
                 if "min" in self.ui_config.dynamic_font_mode:
