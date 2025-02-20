@@ -19,9 +19,9 @@ pip install -r requirements.opencv.txt
 pip install ./assets/CLIP
 
 REM 3. Install DX-RunTime Python package
-REM pushd assets
-REM pip install dx_engine-1.0.0-py3-none-any.whl
-REM popd
+pushd install_dep/windows_python311
+pip install dx_engine-1.0.0-py3-none-any.whl
+popd
 
 echo Setup complete!
 pause

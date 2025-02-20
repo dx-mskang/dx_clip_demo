@@ -21,6 +21,13 @@ import time
 
 from typing import Dict, List, Tuple
 
+if os.name == "nt":
+    import ctypes
+    for p in os.environ.get("PATH").split(";"):
+        dxrtlib = os.path.join(p, "dxrt.dll")
+        if os.path.exists(dxrtlib):
+            ctypes.windll.LoadLibrary(dxrtlib)
+
 from dx_engine import InferenceEngine
 
 # 디스플레이 화면의 크기를 알기 위함.

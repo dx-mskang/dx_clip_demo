@@ -18,6 +18,13 @@ from tqdm import tqdm
 import cv2
 import threading
 
+if os.name == "nt":
+    import ctypes
+    for p in os.environ.get("PATH").split(";"):
+        dxrtlib = os.path.join(p, "dxrt.dll")
+        if os.path.exists(dxrtlib):
+            ctypes.windll.LoadLibrary(dxrtlib)
+
 from dx_engine import InferenceEngine
 
 global_input = ""

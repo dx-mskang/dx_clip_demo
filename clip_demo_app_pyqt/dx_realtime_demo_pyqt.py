@@ -8,6 +8,12 @@ from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
 from PyQt5.QtCore import pyqtSignal, QObject
 from clip_demo_app_pyqt.view.settings_view import SettingsView
 
+if os.name == "nt":
+    import ctypes
+    for p in os.environ.get("PATH").split(";"):
+        dxrtlib = os.path.join(p, "dxrt.dll")
+        if os.path.exists(dxrtlib):
+            ctypes.windll.LoadLibrary(dxrtlib)
 
 settings_ctx_ref = None
 

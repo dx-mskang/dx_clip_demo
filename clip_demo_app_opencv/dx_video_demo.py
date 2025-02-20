@@ -10,13 +10,20 @@ from tqdm import tqdm
 import cv2
 import threading
 
-from dx_engine import InferenceEngine
-
 import os
 project_path = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(project_path)
 from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
 from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
+
+if os.name == "nt":
+    import ctypes
+    for p in os.environ.get("PATH").split(";"):
+        dxrtlib = os.path.join(p, "dxrt.dll")
+        if os.path.exists(dxrtlib):
+            ctypes.windll.LoadLibrary(dxrtlib)
+            
+from dx_engine import InferenceEngine
 
 def get_args():
     # fmt: off
