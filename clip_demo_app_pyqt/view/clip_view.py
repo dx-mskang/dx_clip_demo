@@ -1116,13 +1116,11 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             parent_widget = sentence_output_box.parentWidget()
             if parent_widget:
                 if "min" in self.ui_config.dynamic_font_mode:
-                    print("MIN")
                     self.__adjust_font_size_to_fit(sentence_output_label, parent_widget.width(), self.ui_config.min_font_size)
                 else:
                     self.__adjust_font_size_to_fit(sentence_output_label, parent_widget.width())
         
         if "word_wrap" in self.ui_config.dynamic_font_mode: # 줄바꿈 허용
-            print("WORD_WRAP")
             sentence_output_label.setWordWrap(True)
         
 
