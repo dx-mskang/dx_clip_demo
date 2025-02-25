@@ -1,6 +1,10 @@
 import sys
 import os
 
+# Added temporary workaround for PyQt and dx_engine conflict on Windows
+if os.name == "nt":
+    from dx_engine import InferenceEngine
+
 from PyQt5.QtWidgets import QApplication
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
