@@ -1,8 +1,11 @@
 #!/bin/bash
 
+SCRIPT_DIR=$(realpath "$(dirname "$0")")
+VENV_DIR="$SCRIPT_DIR/../../venv-opencv"
+
 # Default value for DXRT_SRC_PATH if not set
 if [ -z "$DXRT_SRC_PATH" ]; then
-  export DXRT_SRC_PATH="/usr/share/libdxrt/src/"
+  export DXRT_SRC_PATH="/deepx/dx_rt/"
 fi
 
 # Parse arguments
@@ -31,11 +34,11 @@ fi
 
 ### Pre-Requisite
 sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt-get update && sudo apt-get install -y python3 python3-dev python3.10-venv python3-tk
+sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv python3-tk
 
 #### 1. Set up Virtual Environment
-python3 -m venv venv-opencv --system-site-packages
-source ./venv-opencv/bin/activate
+python3 -m venv ${VENV_DIR} --system-site-packages
+source ${VENV_DIR}/bin/activate
 
 ### Setup DX-RunTime python package
 #### 2. Install dx_engine (DX-Runtime Python package)
