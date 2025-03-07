@@ -26,6 +26,9 @@ class ONNXModel(torch.nn.Module):
             x = x.cpu().numpy()
             inputs = {self.model.get_inputs()[0].name: x}
         pred = self.model.run(self.output_names, inputs)
+        if isinstance(pred, list):
+            import numpy as np
+            pred = np.stack(pred)
         return torch.Tensor(pred, device="cpu")
 
 class TextVectorUtil:
