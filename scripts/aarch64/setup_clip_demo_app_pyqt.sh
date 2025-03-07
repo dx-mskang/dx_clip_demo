@@ -30,7 +30,7 @@ fi
 #./setup_clip_assets.sh
 
 ### Pre-Requisite
-sudo add-apt-repository ppa:deadsnakes/ppa
+sudo add-apt-repository -y ppa:deadsnakes/ppa
 sudo apt-get update && sudo apt-get install -y python3 python3-dev python3.10-venv libxcb-xinerama0
 
 #### 1. Set up Virtual Environment

@@ -30,7 +30,7 @@ fi
 #./setup_clip_assets.sh
 
 ### Pre-Requisite
-sudo add-apt-repository ppa:deadsnakes/ppa
+sudo add-apt-repository -y ppa:deadsnakes/ppa
 sudo apt-get update && sudo apt-get install -y python3.11 python3.11-dev python3.11-venv python3-tk
 
 #### 1. Set up Virtual Environment
