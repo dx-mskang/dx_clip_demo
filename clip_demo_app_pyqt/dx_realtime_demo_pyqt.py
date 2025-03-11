@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess
 
 # Added temporary workaround for PyQt and dx_engine conflict on Windows
 if os.name == "nt":
@@ -11,6 +12,20 @@ from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
 
 from PyQt5.QtCore import pyqtSignal, QObject
 from clip_demo_app_pyqt.view.settings_view import SettingsView
+
+def is_vaapi_available():
+    result = subprocess.run(
+        ["gst-inspect-1.0", "vaapi"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return result.returncode == 0
+
+use_vaapi = False
+if is_vaapi_available():
+    use_vaapi = True
+    sys.path.insert(0, "/usr/lib/python3/dist-packages")
+    print("VA-API detected, path added.")
 
 if os.name == "nt":
     import ctypes

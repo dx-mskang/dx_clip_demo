@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import subprocess
 import time
 
 import numpy as np
@@ -15,8 +16,24 @@ from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
 from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
 from tqdm import tqdm
 
-import cv2
 import threading
+
+def is_vaapi_available():
+    result = subprocess.run(
+        ["gst-inspect-1.0", "vaapi"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return result.returncode == 0
+
+use_vaapi = False
+if is_vaapi_available():
+    use_vaapi = True
+    sys.path.insert(0, "/usr/lib/python3/dist-packages")
+    print("VA-API detected, path added.")
+
+import cv2
+print(cv2.getBuildInformation())
 
 if os.name == "nt":
     import ctypes
@@ -122,10 +139,10 @@ class DXVideoEncoder():
         return o
 
     def preprocess_numpy(
-            self,
-            x: np.ndarray,
-            mul_val: np.ndarray = np.float32([64.75055694580078]),
-            add_val: np.ndarray = np.float32([-11.950003623962402]),
+        self,
+        x: np.ndarray,
+        mul_val: np.ndarray = np.float32([64.75055694580078]),
+        add_val: np.ndarray = np.float32([-11.950003623962402]),
     ) -> np.ndarray:
         x = x.astype(np.float32)
         x = x * mul_val + add_val
@@ -170,16 +187,17 @@ class VideoThread(threading.Thread):
     def __init__(self, features_path, video_paths, gt_text_list):
         super().__init__()
         if features_path == "0":
+            self.is_camera_source = True
             self.video_paths = ["/dev/video0"]
             self.current_index = 0
             self.video_path_current = os.path.join(self.video_paths[self.current_index])
         else:
+            self.is_camera_source = False
             self.features_path = features_path
             self.video_paths = video_paths
             self.current_index = 0
             self.video_path_current = os.path.join(features_path, self.video_paths[self.current_index] + ".mp4")
         self.gt_text_list = gt_text_list
-        self.cap = cv2.VideoCapture(self.video_path_current)
         self.stop_thread = False
         self.final_text = ""
         self.result_text = ""
@@ -209,6 +227,11 @@ class VideoThread(threading.Thread):
                          self.y + 115 + int(self.video_size_h / 2) - self.text_line_height]
         self.show_fps_roi = [int(self.pannel_size_w * 4 / 5), 0]
 
+        if use_vaapi:
+            self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current), cv2.CAP_GSTREAMER)
+        else:
+            self.cap = cv2.VideoCapture(self.video_path_current)
+
         self.original = np.zeros((224, 224, 3), dtype=np.uint8)
         self.transform_ = self.transform(224)
         self.update_new_text = False
@@ -221,6 +244,32 @@ class VideoThread(threading.Thread):
             self.text_line_height = 20
             self.text_thickness = 1
             self.text_roi = [self.x + self.video_size_w + self.x, self.y + 115 - self.text_line_height]
+
+    def __generate_gst_pipeline(self, video_path):
+        width = self.video_size_w
+        height = self.video_size_h
+
+        if self.is_camera_source:
+            gst_pipeline = (
+                f"v4l2src device={video_path} ! "
+                f"videoconvert ! appsink"
+            )
+        else:
+            gst_pipeline = (
+                f"filesrc location={video_path} ! "
+                # f"videotestsrc ! "
+                f"queue leaky=no max-size-buffers=30 max-size-bytes=0 max-size-time=0 ! "
+                f"qtdemux ! vaapidecodebin ! "
+                # f"qtdemux ! h264parse ! avdec_h264 ! "        // use cpu only
+                f"queue leaky=no max-size-buffers=5 max-size-bytes=0 max-size-time=0 ! "
+                f"videoconvert qos=false ! "
+                f"videoscale method=0 add-borders=false qos=false ! "
+                f"video/x-raw,width={width},height={height},pixel-aspect-ratio=1/1 ! "
+                f"queue leaky=no max-size-buffers=30 max-size-bytes=0 max-size-time=0 ! "
+                f"appsink"
+            )
+
+        return gst_pipeline
 
     def run(self):
         global global_input
@@ -268,18 +317,33 @@ class VideoThread(threading.Thread):
                     self.video_path_current = os.path.join(self.features_path,
                                                            self.video_paths[self.current_index] + ".mp4")
                     self.cap.release()
-                    self.cap = cv2.VideoCapture(self.video_path_current)
+                    if use_vaapi:
+                        self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current),
+                                                    cv2.CAP_GSTREAMER)
+                    else:
+                        self.cap = cv2.VideoCapture(self.video_path_current)
+
                     ret, self.original = self.cap.read()
                 else:
                     self.current_index = 0
                     self.video_path_current = os.path.join(self.features_path,
                                                            self.video_paths[self.current_index] + ".mp4")
                     self.cap.release()
-                    self.cap = cv2.VideoCapture(self.video_path_current)
+                    if use_vaapi:
+                        self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current),
+                                                    cv2.CAP_GSTREAMER)
+                    else:
+                        self.cap = cv2.VideoCapture(self.video_path_current)
                     ret, self.original = self.cap.read()
 
+            # image resize
+            if use_vaapi:
+                # The image has already been resized at the GStreamer level, so resizing is skipped.
+                frame = self.original
+            else:
+                frame = cv2.resize(self.original, (self.video_size_w, self.video_size_h), cv2.INTER_NEAREST)
+
             # 영상 위에 텍스트 추가
-            frame = cv2.resize(self.original, (self.video_size_w, self.video_size_h), cv2.INTER_NEAREST)
             self.view_pannel_frame[self.video_roi[1]:self.video_roi[1] + self.video_roi[3],
             self.video_roi[0]:self.video_roi[0] + self.video_roi[2]] = frame
 

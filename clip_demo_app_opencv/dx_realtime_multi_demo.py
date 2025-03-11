@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-import time
+import subprocess
 
 import numpy as np
 import torch
@@ -15,11 +15,27 @@ from clip_demo_app_pyqt.lib.clip.dx_text_encoder import ONNXModel
 from clip.simple_tokenizer import SimpleTokenizer as ClipTokenizer
 from tqdm import tqdm
 
-import cv2
 import threading
 import time
 
-from typing import Dict, List, Tuple
+from typing import List, Tuple
+
+def is_vaapi_available():
+    result = subprocess.run(
+        ["gst-inspect-1.0", "vaapi"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return result.returncode == 0
+
+use_vaapi = False
+if is_vaapi_available():
+    use_vaapi = True
+    sys.path.insert(0, "/usr/lib/python3/dist-packages")
+    print("VA-API detected, path added.")
+
+import cv2
+print(cv2.getBuildInformation())
 
 if os.name == "nt":
     import ctypes
@@ -55,21 +71,21 @@ global_quit = False
 def get_args():
     # fmt: off
     parser = argparse.ArgumentParser(description="Generate Similarity Matrix from ONNX files")
-    
+
     # Dataset Path Arguments
     parser.add_argument("--features_path", type=str, default="assets", help="Videos directory")
-    
+
     # Dataset Configuration Arguments
     parser.add_argument("--max_words", type=int, default=32, help="")
     parser.add_argument("--feature_framerate", type=int, default=1, help="")
     parser.add_argument("--slice_framepos", type=int, default=0, choices=[0, 1, 2], help="0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.")
-    
+
     # Model Path Arguments
     parser.add_argument("--token_embedder_onnx", type=str, default="assets/onnx/embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for token embedder")
     parser.add_argument("--text_encoder_onnx", type=str, default="assets/onnx/textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for text encoder")
     parser.add_argument("--video_encoder_onnx", type=str, default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for video encoder")
     parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/pia_vit_240912.dxnn", help="ONNX file path for video encoder")
-    
+
     return parser.parse_args()
 
 def insert_text_in_term():
@@ -93,9 +109,9 @@ def _mean_pooling_for_similarity_visual(vis_output, video_frame_mask):
 
 def _loose_similarity(text_vectors, video_vectors, video_frame_mask):
     sequence_output, visual_output = (
-            text_vectors.contiguous(),
-            video_vectors.contiguous(),
-        )
+        text_vectors.contiguous(),
+        video_vectors.contiguous(),
+    )
     visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True)
     visual_output = _mean_pooling_for_similarity_visual(
         visual_output, video_frame_mask
@@ -130,7 +146,7 @@ def get_text_vectors(text_list:List[str], embedder, encoder):
 class DXVideoEncoder():
     def __init__(self, model_path: str):
         self.ie = InferenceEngine(model_path)
-        
+
     def run(self, x):
         x = x.numpy()
         x = self.preprocess_numpy(x)
@@ -139,10 +155,10 @@ class DXVideoEncoder():
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
-                
+
     def preprocess_numpy(
         self,
-        x:np.ndarray,
+        x: np.ndarray,
         mul_val: np.ndarray = np.float32([64.75055694580078]),
         add_val: np.ndarray = np.float32([-11.950003623962402]),
     ) -> np.ndarray:
@@ -189,17 +205,22 @@ class SingleVideoThread(threading.Thread):
         self.text_scale = 0.8
         
         if video_path_list[0] == "/dev/video0":
+            self.is_camera_source = True
             self.base_path = ""
             self.video_path_list = ["/dev/video0"]
             self.current_index = 0
             self.video_path_current = os.path.join(self.video_path_list[self.current_index])
         else:
+            self.is_camera_source = False
             self.base_path = base_path
             self.video_path_list = video_path_list
             self.current_index = 0
             self.video_path_current = os.path.join(self.base_path, self.video_path_list[self.current_index] + ".mp4")
 
-        self.cap = cv2.VideoCapture(self.video_path_current)
+        if use_vaapi:
+            self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current), cv2.CAP_GSTREAMER)
+        else:
+            self.cap = cv2.VideoCapture(self.video_path_current)
         self.current_original_frame = np.zeros((self.imshow_size[1], self.imshow_size[0], 3), dtype=np.uint8)  # 검정색 판 
         self.current_original_frame = self.cap.read()
         self.position = position
@@ -230,12 +251,38 @@ class SingleVideoThread(threading.Thread):
         self.get_cap()
         while not global_quit:
             self.get_cap()
-            time.sleep(1 / self.video_fps)
+            time.sleep(1 / self.video_fps * 0.75)
 
             if global_quit:
                 break
             
         self.cap.release()
+
+    def __generate_gst_pipeline(self, video_path):
+        width = self.imshow_size[0]
+        height = self.imshow_size[1]
+
+        if self.is_camera_source:
+            gst_pipeline = (
+                f"v4l2src device={video_path} ! "
+                f"videoconvert ! appsink"
+            )
+        else:
+            gst_pipeline = (
+                f"filesrc location={video_path} ! "
+                # f"videotestsrc ! "
+                f"queue leaky=no max-size-buffers=30 max-size-bytes=0 max-size-time=0 ! "
+                f"qtdemux ! vaapidecodebin ! "
+                # f"qtdemux ! h264parse ! avdec_h264 ! "        // use cpu only
+                f"queue leaky=no max-size-buffers=5 max-size-bytes=0 max-size-time=0 ! "
+                f"videoconvert qos=false ! "
+                 f"videoscale method=0 add-borders=false qos=false ! "
+                 f"video/x-raw,width={width},height={height},pixel-aspect-ratio=1/1 ! "
+                f"queue leaky=no max-size-buffers=30 max-size-bytes=0 max-size-time=0 ! "
+                f"appsink"
+            )
+
+        return gst_pipeline
         
     
     def get_cap(self):
@@ -244,13 +291,22 @@ class SingleVideoThread(threading.Thread):
             self.current_index = 0 if self.current_index + 1 == len(self.video_path_list) else self.current_index + 1
             self.video_path_current = os.path.join(self.base_path, self.video_path_list[self.current_index] + ".mp4")
             self.cap.release()
-            self.cap = cv2.VideoCapture(self.video_path_current)
+            if use_vaapi:
+                self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current), cv2.CAP_GSTREAMER)
+            else:
+                self.cap = cv2.VideoCapture(self.video_path_current)
             ret, frame = self.cap.read()
             self.video_source_updated = True
         self.current_original_frame = frame
     
     def get_resized_frame(self):
-        resized_frame = cv2.resize(self.current_original_frame, self.imshow_size, cv2.INTER_LINEAR)
+        if use_vaapi:
+            # The image has already been resized at the GStreamer level, so resizing is skipped.
+            resized_frame = self.current_original_frame
+        else:
+            # sw resize
+            resized_frame = cv2.resize(self.current_original_frame, self.imshow_size, cv2.INTER_LINEAR)
+
         if len(self.this_argmax_text) > 0:
             try:
                 cv2.rectangle(

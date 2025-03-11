@@ -448,7 +448,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
         self.adjusted_video_grid_info: MergedVideoGridInfo = adjusted_video_grid_info
         self.ui_config = ui_config
 
-        self.ui_helper = UIHelper(self, self.ui_config)
+        # self.ui_helper = UIHelper(self, self.ui_config, window_w=1920, window_h=1080)
+        self.ui_helper = UIHelper(self, self.ui_config, window_w=1920, window_h=1080)
 
         self.setWindowTitle("Video Processing App")
 

@@ -2,6 +2,8 @@ import logging
 import os
 import threading
 import time
+import sys
+import subprocess
 from typing import List, Tuple
 
 import cv2
@@ -9,6 +11,21 @@ import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QImage
 
+print(cv2.getBuildInformation())
+
+def is_vaapi_available():
+    result = subprocess.run(
+        ["gst-inspect-1.0", "vaapi"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return result.returncode == 0
+
+use_vaapi = False
+if is_vaapi_available():
+    use_vaapi = True
+    sys.path.insert(0, "/usr/lib/python3/dist-packages")
+    print("VA-API detected, path added.")
 
 class VideoProducer(QObject):
     __scaled_video_frame_updated_signal = pyqtSignal(int, QImage)
@@ -54,7 +71,11 @@ class VideoProducer(QObject):
         self.__video_size = video_size
         self.__video_label_size = video_size
 
-        self.__video_capture = cv2.VideoCapture(self.__video_path_current)
+        if use_vaapi:
+            self.__video_capture = cv2.VideoCapture(self.__generate_gst_pipeline(self.__video_path_current),
+                                                    cv2.CAP_GSTREAMER)
+        else:
+            self.__video_capture = cv2.VideoCapture(self.__video_path_current)
 
         if not self.__video_capture:
             logging.error("Error: Could not open video.")
@@ -64,6 +85,33 @@ class VideoProducer(QObject):
             logging.debug("channel_idx:" + str(self._channel_idx) + f"FPS: {self.__video_fps}")
 
         self.__current_video_frame = np.zeros((self.__video_label_size[1], self.__video_label_size[0], 3), dtype=np.uint8)
+
+    def __generate_gst_pipeline(self, video_path):
+        # width = self.__video_label_size[0]
+        # height = self.__video_label_size[1]
+
+        if self.__is_camera_source:
+            gst_pipeline = (
+                f"v4l2src device={video_path} ! "
+                f"videoconvert ! appsink"
+            )
+        else:
+            gst_pipeline = (
+                f"filesrc location={video_path} ! "
+                f"queue leaky=no max-size-buffers=30 max-size-bytes=0 max-size-time=0 ! "
+                f"qtdemux ! vaapidecodebin ! "
+                # f"qtdemux ! h264parse ! avdec_h264 ! "        // use cpu only
+                f"queue leaky=no max-size-buffers=5 max-size-bytes=0 max-size-time=0 ! "
+                f"videoconvert qos=false ! "
+                # Temporary code: Commented out hardware-accelerated resize. Reason: Malfunction in PyQt (interference between channels).
+                # f"videoscale method=0 add-borders=false qos=false ! "
+                # f"video/x-raw,width={width},height={height},pixel-aspect-ratio=1/1 ! "
+                f"queue leaky=no max-size-buffers=30 max-size-bytes=0 max-size-time=0 ! "
+                f"appsink"
+            )
+
+        logging.debug(f"Using GStreamer pipeline: {gst_pipeline}")
+        return gst_pipeline
 
     def is_camera_source(self):
         return self.__is_camera_source
@@ -95,7 +143,19 @@ class VideoProducer(QObject):
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        scaled_image = convert_to_qt_format.scaled(self.__video_label_size[0], self.__video_label_size[1], Qt.KeepAspectRatio)
+
+        if use_vaapi:
+            # Temporary code: Commented out hardware-accelerated resize. Reason: Malfunction in PyQt (interference between channels).
+            # The image has already been resized at the GStreamer level, so resizing is skipped.
+            # scaled_image = convert_to_qt_format
+
+            # sw resize
+            scaled_image = convert_to_qt_format.scaled(self.__video_label_size[0], self.__video_label_size[1],
+                                                       Qt.KeepAspectRatio)
+        else:
+            # sw resize
+            scaled_image = convert_to_qt_format.scaled(self.__video_label_size[0], self.__video_label_size[1],
+                                                       Qt.KeepAspectRatio)
 
         # Send the scaled QImage to the main thread
         self.__scaled_video_frame_updated_signal.emit(self._channel_idx, scaled_image)
@@ -105,7 +165,11 @@ class VideoProducer(QObject):
 
     def __update_current_video_frame(self):
         with self.__change_video_lock:
-            ret, frame = self.__video_capture.read()
+            if not self.__video_capture.isOpened():
+                logging.debug("Failed to open video capture")
+            else:
+                ret, frame = self.__video_capture.read()
+
         if not ret:
             self.__change_video(True)
         else:
@@ -127,13 +191,22 @@ class VideoProducer(QObject):
                                                      self.video_path_list[self.__current_index] + ".mp4")
         with self.__change_video_lock:
             self.__video_capture.release()
-            self.__video_capture = cv2.VideoCapture(self.__video_path_current)
-            ret, frame = self.__video_capture.read()
+            if use_vaapi:
+                self.__video_capture = cv2.VideoCapture(self.__generate_gst_pipeline(self.__video_path_current),
+                                                        cv2.CAP_GSTREAMER)
+            else:
+                self.__video_capture = cv2.VideoCapture(self.__video_path_current)
+
+            if not self.__video_capture.isOpened():
+                logging.debug("Failed to open video capture")
+            else:
+                ret, frame = self.__video_capture.read()
+
             if ret:
                 self.__video_source_changed_signal.emit(self._channel_idx)
                 self.__current_video_frame = frame
             else:
-                logging.debug("fail to read video frame : " + str(ret))
+                logging.debug("Failed to read video frame: " + str(ret))
 
     def stop(self):
         self.__running = False
