@@ -5,11 +5,16 @@
 ---
 ### Pre-Requisite
 #### Get assets (input videos and prebuilt CLIP AI model) files
-Extract the `clip_assets.tar.gz` file, which was provided separately and is not included in the distributed source code.
+Download the asset files using setup.sh. These files are provided separately and are not included in the distributed source code.
 
+When running setup.sh, you must specify app_type and dxrt_src_path as arguments.
+Running setup.sh will automatically download the asset files and set up a Python virtual environment (venv).
+`./setup.sh --app_type=<app_type> --dxrt_src_path=<path_to_dxrt>`
 ```bash
-tar -zxvf pia_assets.tar.gz 
+# exam
+./setup.sh --app_type=opencv --dxrt_src_path=/deepx/dx_rt
 ```
+
 File structure in `./assets/`:
 ```
 assets
@@ -48,9 +53,8 @@ assets
 │   ├── the_pile_of_sockets_is_smoky_and_on_fire.mp4
 │   ├── two_childrens_are_fighting.mp4
 │   └── violence_in_shopping_mall_short.mp4
-├── dx_engine-1.0.0-py3-none-any.whl
 ├── dxnn
-│   ├── pia_vit_240814.dxnn
+│   ├── clip_vit_240912.dxnn
 └── onnx
     ├── embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
     ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
@@ -61,15 +65,20 @@ assets
 ### Setup Demo
 #### 1. Run setup script 
 Depending on the application runtime environment, an automated setup script can be used as shown below. For more details, please refer to the script's specifics.
+
+Using setup.sh, the script automatically detects the amd64 and aarch64 environments, downloads the assets files, and sets up the application runtime environment.
+
+However, for Windows, you need to run either setup_clip_demo_app_pyqt.bat or setup_clip_demo_app_opencv.bat.
+
 ##### for Linux amd64
 ```
-./scripts/amd64/setup_clip_demo_app_opencv.sh --dxrt_src_path=<path_to_dxrt>
+./scripts/setup_clip_demo_app.sh --app_type=opencv --arch_type=amd64 --dxrt_src_path=<path_to_dxrt>
 ```
 
 ##### for Linux aarch64 (OrangePi 5+ Ubuntu 22.04 OS)
 - for Linux aarch64 
 ```
-./scripts/aarch64/setup_clip_demo_app_opencv.sh --dxrt_src_path=<path_to_dxrt>
+./scripts/setup_clip_demo_app.sh --app_type=opencv --arch_type=aarch64 --dxrt_src_path=<path_to_dxrt>
 ```
 
 ##### for Windows

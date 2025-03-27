@@ -5,7 +5,7 @@
 Connect the webcam to the device.
 
 ## Steps
-1. Run `./run_pia_demo.sh` and select options 2-3.  
+1. Run `./run_clip_demo.sh` and select options 2-3.  
 2. In the `Settings` window, ensure the checkboxes for `Settings(prompt) Mode` and `Camera Mode` are checked, then click the `Done` button.
     - ![](../img/6_settings_view_realtime_prompt.png)
 3. Confirm the webcam video in the last channel.  

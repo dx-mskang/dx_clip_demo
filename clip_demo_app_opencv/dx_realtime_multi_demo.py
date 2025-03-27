@@ -84,7 +84,7 @@ def get_args():
     parser.add_argument("--token_embedder_onnx", type=str, default="assets/onnx/embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for token embedder")
     parser.add_argument("--text_encoder_onnx", type=str, default="assets/onnx/textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for text encoder")
     parser.add_argument("--video_encoder_onnx", type=str, default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for video encoder")
-    parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/pia_vit_240912.dxnn", help="ONNX file path for video encoder")
+    parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/clip_vit_240912.dxnn", help="ONNX file path for video encoder")
 
     return parser.parse_args()
 

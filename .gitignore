@@ -1,7 +1,9 @@
 .idea
 .vscode
-/assets/
+assets/
+assets
 venv*/
+venv*
 profiler.json
 .venv/
 

@@ -10,9 +10,9 @@ PyQt5
 QDarkStyle
 QtPy
 regex
-torch
-torchaudio
-torchvision
+torch --find-links https://download.pytorch.org/whl/cpu
+torchvision --find-links https://download.pytorch.org/whl/cpu
+torchaudio --find-links https://download.pytorch.org/whl/cpu
 tqdm
 debugpy
 

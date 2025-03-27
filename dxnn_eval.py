@@ -102,7 +102,7 @@ def clip4clip_onnx_sim_matrix(
     video_encoder: ONNXModel,
     text_encoder: ONNXModel,
     token_embedder: ONNXModel,
-    torch_model: PiaTorchModel,
+    torch_model: ClipTorchModel,
     dataset_args: argparse.Namespace,
 ):
 
@@ -348,7 +348,7 @@ def main():
         model_path=args.torch_model,
         device=device,
     )
-    torch_model = PiaTorchModel(target_task=1, target_model=0, config=torch_model_config)
+    torch_model = ClipTorchModel(target_task=1, target_model=0, config=torch_model_config)
 
     # Set up Dataset Arguments
     print("Set up dataset Arguments")
