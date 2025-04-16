@@ -7,6 +7,9 @@ from dx_engine import InferenceEngine
 class DXVideoEncoder:
     def __init__(self, model_path: str):
         self.ie = InferenceEngine(model_path)
+        self.cpu_offloaded = False
+        if "cpu_0" in self.ie.task_order():
+            self.cpu_offloaded = True
 
     def __del__(self):
         print("DXVideoEncoder 객체가 삭제됩니다!")  # 가비지 컬렉션 확인용
@@ -16,7 +19,8 @@ class DXVideoEncoder:
     
     def run_async(self, x, args):
         x = x.numpy()
-        x = self.preprocess_numpy(x)
+        if not self.cpu_offloaded:
+            x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
         request_id = self.ie.RunAsync(x, args)
         return request_id
@@ -29,7 +33,8 @@ class DXVideoEncoder:
     
     def run(self, x):
         x = x.numpy()
-        x = self.preprocess_numpy(x)
+        if not self.cpu_offloaded:
+            x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
         o = self.ie.Run(x)[0]
         o = self.postprocess_numpy(o)
@@ -70,14 +75,16 @@ class DXVideoEncoder:
 
     @staticmethod
     def postprocess_numpy(x: np.ndarray) -> np.ndarray:
-        assert len(x.shape) == 3
-        x = x[:, 0]
+        x = x.reshape(-1, 512)
+        x = x[0, :]
+        assert x.shape == (512, )
         x = x / np.linalg.norm(x, axis=-1, keepdims=True)
         return x
 
     @staticmethod
     def postprocess_torch(x: torch.Tensor) -> torch.Tensor:
-        assert len(x.shape) == 3
-        x = x[:, 0]
+        x = x.reshape(-1, 512)
+        x = x[0, :]
+        assert x.shape == (512, )
         x = x / torch.norm(x, dim=-1, keepdim=True)
         return x

@@ -128,18 +128,22 @@ def _loose_similarity(text_vectors, video_vectors, video_frame_mask):
 class DXVideoEncoder():
     def __init__(self, model_path: str):
         self.ie = InferenceEngine(model_path)
-
+        self.cpu_offloaded = False
+        if "cpu_0" in self.ie.task_order():
+            self.cpu_offloaded = True
+    
     def run(self, x):
         x = x.numpy()
-        x = self.preprocess_numpy(x)
+        if not self.cpu_offloaded:
+            x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
         o = self.ie.Run(x)[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
 
+    @staticmethod
     def preprocess_numpy(
-        self,
         x: np.ndarray,
         mul_val: np.ndarray = np.float32([64.75055694580078]),
         add_val: np.ndarray = np.float32([-11.950003623962402]),
@@ -154,8 +158,8 @@ class DXVideoEncoder():
         x = np.transpose(x, [0, 2, 1, 3])
         return x
 
+    @staticmethod
     def preprocess_torch(
-            self,
             x: torch.Tensor,
             mul_val: torch.Tensor = torch.FloatTensor([64.75055694580078]),
             add_val: torch.Tensor = torch.FloatTensor([-11.950003623962402]),
@@ -170,15 +174,19 @@ class DXVideoEncoder():
         x = torch.permute(x, [0, 2, 1, 3])
         return x
 
-    def postprocess_numpy(self, x: np.ndarray) -> np.ndarray:
-        assert len(x.shape) == 3
-        x = x[:, 0]
+    @staticmethod
+    def postprocess_numpy(x: np.ndarray) -> np.ndarray:
+        x = x.reshape(-1, 512)
+        x = x[0, :]
+        assert x.shape == (512, )
         x = x / np.linalg.norm(x, axis=-1, keepdims=True)
         return x
 
-    def postprocess_torch(self, x: torch.Tensor) -> torch.Tensor:
-        assert len(x.shape) == 3
-        x = x[:, 0]
+    @staticmethod
+    def postprocess_torch(x: torch.Tensor) -> torch.Tensor:
+        x = x.reshape(-1, 512)
+        x = x[0, :]
+        assert x.shape == (512, )
         x = x / torch.norm(x, dim=-1, keepdim=True)
         return x
 

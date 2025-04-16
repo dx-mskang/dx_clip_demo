@@ -149,14 +149,17 @@ class VideoThread(threading.Thread):
 class DXVideoEncoder():
     def __init__(self, model_path: str):
         self.ie = InferenceEngine(model_path)
-        
+        self.cpu_offloaded = False
+        if "cpu_0" in self.ie.task_order():
+            self.cpu_offloaded = True
+    
     def run(self, x):
-        # print("input", x.shape, x.dtype, x.min(), x.max())
         ret = []
         x = x.numpy()
         for i in range(x.shape[0]):
             inp = x[i:i+1]
-            inp = self.preprocess_numpy(inp)
+            if not self.cpu_offloaded:
+                inp = self.preprocess_numpy(inp)
             inp = np.ascontiguousarray(inp)
             o = self.ie.Run(inp)[0]
             o = self.postprocess_numpy(o)
@@ -166,11 +169,10 @@ class DXVideoEncoder():
         z = torch.cat(ret, dim=0)
         
         return z
-    
-        
+
+    @staticmethod
     def preprocess_numpy(
-        self,
-        x:np.ndarray,
+        x: np.ndarray,
         mul_val: np.ndarray = np.float32([64.75055694580078]),
         add_val: np.ndarray = np.float32([-11.950003623962402]),
     ) -> np.ndarray:
@@ -184,9 +186,8 @@ class DXVideoEncoder():
         x = np.transpose(x, [0, 2, 1, 3])
         return x
 
-    
+    @staticmethod
     def preprocess_torch(
-        self,
         x: torch.Tensor,
         mul_val: torch.Tensor = torch.FloatTensor([64.75055694580078]),
         add_val: torch.Tensor = torch.FloatTensor([-11.950003623962402]),
@@ -201,16 +202,19 @@ class DXVideoEncoder():
         x = torch.permute(x, [0, 2, 1, 3])
         return x
 
-    def postprocess_numpy(self, x: np.ndarray) -> np.ndarray:
-        assert len(x.shape) == 3
-        x = x[:, 0]
+    @staticmethod
+    def postprocess_numpy(x: np.ndarray) -> np.ndarray:
+        x = x.reshape(-1, 512)
+        x = x[0, :]
+        assert x.shape == (512, )
         x = x / np.linalg.norm(x, axis=-1, keepdims=True)
         return x
 
-
-    def postprocess_torch(self, x: torch.Tensor) -> torch.Tensor:
-        assert len(x.shape) == 3
-        x = x[:, 0]
+    @staticmethod
+    def postprocess_torch(x: torch.Tensor) -> torch.Tensor:
+        x = x.reshape(-1, 512)
+        x = x[0, :]
+        assert x.shape == (512, )
         x = x / torch.norm(x, dim=-1, keepdim=True)
         return x
     
