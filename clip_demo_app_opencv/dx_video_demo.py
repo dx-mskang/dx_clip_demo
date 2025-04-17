@@ -166,7 +166,7 @@ class DXVideoEncoder():
             o = torch.from_numpy(o)
             ret.append(o)
         
-        z = torch.cat(ret, dim=0)
+        z = torch.stack(ret)
         
         return z
 

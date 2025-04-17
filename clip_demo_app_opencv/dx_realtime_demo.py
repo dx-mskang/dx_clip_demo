@@ -670,7 +670,7 @@ def main():
         # 9 text ids : number of token ids
         # token to ids (using by "bpe_simple_vocab_16e6.txt.gz")
         ############################################ time
-        video_pred = dxnn_video_encoder.run(raw_video_data)
+        video_pred = dxnn_video_encoder.run(raw_video_data).reshape(1, 512)
         run_dxnn_time_e = time.perf_counter_ns()
         run_dxnn_time_t.append(run_dxnn_time_e - run_dxnn_time_s)
 

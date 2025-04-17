@@ -491,7 +491,7 @@ class DXEngineThread(threading.Thread):
                 frame = vCap.current_original_frame.copy()
                 dxnn_s = time.perf_counter_ns()
                 input_data = self.image_transform(Image.fromarray(frame).convert("RGB"))
-                video_pred = self.video_encoder.run(input_data)[0]
+                video_pred = self.video_encoder.run(input_data)
                 dxnn_e = time.perf_counter_ns()
                 # print(index, " : ", video_pred.shape)
                 for text_index in range(len(self.text_vectors)):
