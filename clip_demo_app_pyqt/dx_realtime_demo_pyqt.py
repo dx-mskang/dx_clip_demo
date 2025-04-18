@@ -4,6 +4,7 @@ import subprocess
 
 # Added temporary workaround for PyQt and dx_engine conflict on Windows
 if os.name == "nt":
+    import onnxruntime
     from dx_engine import InferenceEngine
 
 from PyQt5.QtWidgets import QApplication
@@ -22,10 +23,11 @@ def is_vaapi_available():
     return result.returncode == 0
 
 use_vaapi = False
-if is_vaapi_available():
-    use_vaapi = True
-    sys.path.insert(0, "/usr/lib/python3/dist-packages")
-    print("VA-API detected, path added.")
+if os.name != "nt":
+    if is_vaapi_available():
+        use_vaapi = True
+        sys.path.insert(0, "/usr/lib/python3/dist-packages")
+        print("VA-API detected, path added.")
 
 if os.name == "nt":
     import ctypes

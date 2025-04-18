@@ -555,6 +555,8 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
 
         if self.ui_config.fullscreen_mode:
             self.showFullScreen()
+        # for windows
+        self._refresh_video_size()
 
     def show_loading(self):
         if self.loading_overlay:

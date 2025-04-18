@@ -22,10 +22,11 @@ def is_vaapi_available():
     return result.returncode == 0
 
 use_vaapi = False
-if is_vaapi_available():
-    use_vaapi = True
-    sys.path.insert(0, "/usr/lib/python3/dist-packages")
-    print("VA-API detected, path added.")
+if os.name != "nt":
+    if is_vaapi_available():
+        use_vaapi = True
+        sys.path.insert(0, "/usr/lib/python3/dist-packages")
+        print("VA-API detected, path added.")
 
 class VideoProducer(QObject):
     __scaled_video_frame_updated_signal = pyqtSignal(int, QImage)
