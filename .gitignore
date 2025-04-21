@@ -17,3 +17,4 @@ __pycache__/
 
 clip_demo_app_pyqt/data/data.json
 clip-*/*
+demo-*/*

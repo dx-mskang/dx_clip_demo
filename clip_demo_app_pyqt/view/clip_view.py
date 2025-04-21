@@ -9,7 +9,7 @@ from typing import List
 
 import qdarkstyle
 from PyQt5.QtCore import Qt, QObject, QEvent, QUrl, QTimer
-from PyQt5.QtGui import QPixmap, QFontDatabase, QFont, QColor, QMovie, QFontMetrics
+from PyQt5.QtGui import QPixmap, QFont, QColor, QMovie, QFontMetrics
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QMainWindow, QLineEdit, \
@@ -431,9 +431,6 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
                  adjusted_video_grid_info):
         QMainWindow.__init__(self)
         QObject.__init__(self)
-        self.app_font = QFontDatabase.addApplicationFont("./install_dep/DejaVuSans.ttf")
-        self.font_families = QFontDatabase.applicationFontFamilies(self.app_font)
-        self.setFont(QFont(self.font_families[0]))
         self.root_layout = None
         self.prev_app_layout_container = None
         self.prev_app_layout = None
@@ -1309,7 +1306,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             sentence_alarm_checkbox.setChecked(sentence.get_alarm())
             sentence_alarm_checkbox.clicked.connect(lambda _, i=idx: self.toggle_alarm(i))
             sentence_alarm_checkbox.setFixedWidth(40)
-            sentence_alarm_checkbox.setStyleSheet("font-size: 8px;")
+            sentence_alarm_checkbox.setStyleSheet("font-size: 9px;")
             sentence_box.addWidget(sentence_alarm_checkbox)
 
             sentence_media_alarm_checkbox = QCheckBox("Media", self)
@@ -1317,7 +1314,7 @@ class ClipView(Base, QMainWindow, metaclass=CombinedMeta):
             sentence_media_alarm_checkbox.clicked.connect(lambda _, i=idx: self.toggle_media_alarm(i))
             sentence_media_alarm_checkbox.setFixedWidth(60)
             
-            sentence_media_alarm_checkbox.setStyleSheet("font-size: 8px;")
+            sentence_media_alarm_checkbox.setStyleSheet("font-size: 9px;")
             sentence_box.addWidget(sentence_media_alarm_checkbox)
 
             self.sentence_list_layout.addLayout(sentence_box)

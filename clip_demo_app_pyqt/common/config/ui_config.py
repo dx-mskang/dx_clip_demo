@@ -1,7 +1,7 @@
 import math
 
 from PyQt5.QtWidgets import QMainWindow, QApplication
-from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtGui import QGuiApplication, QFont
 
 
 class UIConfig:
@@ -61,19 +61,19 @@ class UIHelper:
         super().__init__()
         self.ui_config = ui_config
 
-        self.large_font = ctx.font()
+        self.large_font = QFont() 
         self.large_font.setPointSize(18)
         self.large_font_line_height = 44
         self.large_font_bottom_padding = 22
         self.large_font_prefix_text_fixed_width = 200
 
-        self.small_font = ctx.font()
+        self.small_font = QFont() 
         self.small_font.setPointSize(9)
         self.small_font_line_height = 22
-        self.small_font_bottom_padding = 11
+        self.small_font_bottom_padding = 28
         self.small_font_prefix_text_fixed_width = 100
 
-        self.smaller_font = ctx.font()
+        self.smaller_font = QFont() # QFont(QFont(self.font_families[0])) #ctx.font()
         self.smaller_font.setPointSize(7)
         self.smaller_font_line_height = 16
         self.smaller_font_bottom_padding = 8

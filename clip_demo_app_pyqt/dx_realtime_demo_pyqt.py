@@ -13,6 +13,7 @@ from clip_demo_app_pyqt.common.parser.parser_util import ParserUtil
 
 from PyQt5.QtCore import pyqtSignal, QObject
 from clip_demo_app_pyqt.view.settings_view import SettingsView
+from PyQt5.QtGui import QFontDatabase, QFont
 
 def is_vaapi_available():
     result = subprocess.run(
@@ -80,8 +81,13 @@ def main():
 
     app = QApplication(sys.argv)
     
+    app_font = QFontDatabase.addApplicationFont("./install_dep/DejaVuSans.ttf")
+    font_families = QFontDatabase.applicationFontFamilies(app_font)
+    
     settings_window = SettingsView(args, success_cb)
+    settings_window.setFont(QFont(font_families[0]))
     settings_window.show()
+    app.setFont(QFont(font_families[0]))
 
     app_ret = app.exec_()
 
