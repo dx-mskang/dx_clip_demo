@@ -4,23 +4,23 @@ setlocal
 set "MODELS_URL=https://sdk.deepx.ai/res/assets/clip_assets.tar.gz"
 set "VIDEOS_URL=https://sdk.deepx.ai/res/video/videos.tar.gz"
 set "MODELS_PATH=assets"
-set "VIDEOS_PATH=assets\videos"
+set "VIDEOS_PATH=assets\demo_videos"
 
 if not exist "%MODELS_PATH%" (
     echo "not found models, make dir %MODELS_PATH%"
     mkdir "%MODELS_PATH%"
-    echo "Download models tar.gz file URL : %MODELS_URL%"
+    echo "Download clip_assets.tar.gz file URL : %MODELS_URL%"
     curl -o clip_assets.tar.gz %MODELS_URL%
     if %errorlevel%==0 (
-        echo "extract models.tar.gz to %MODELS_PATH%"
+        echo "extract clip_assets.tar.gz to %MODELS_PATH%"
         tar -xzvf clip_assets.tar.gz -C %MODELS_PATH%
         if %errorlevel%==0 (
             del /f /q clip_assets.tar.gz
-            echo "remove models.tar.gz"
+            echo "remove clip_assets.tar.gz"
         )
     )
     if %errorlevel%==0 (
-        echo "Download models.tar.gz and extract models : Complete"
+        echo "Download clip_assets.tar.gz and extract models : Complete"
     )
 ) else (
     echo "models directory found (%MODELS_PATH%)"

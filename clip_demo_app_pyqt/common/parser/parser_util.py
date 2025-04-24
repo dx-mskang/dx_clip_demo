@@ -36,7 +36,7 @@ class ParserUtil:
         parser.add_argument("--video_encoder_onnx", type=str,
                             default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx",
                             help="ONNX file path for video encoder")
-        parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/pia_vit_250331.dxnn",
+        parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/clip_vit_250331.dxnn",
                             help="ONNX file path for video encoder")
 
         return parser.parse_args()
