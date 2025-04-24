@@ -11,8 +11,6 @@ if exist "%~dp0%ENV_FOLDER%\" (
 	call "%~dp0\scripts\x86_64_win\%SETUP_VENV%"
 )
 
-start "" dxrtd
-
 call "%~dp0%RUN_DEMO%"
 
 exit /b 0
