@@ -27,10 +27,11 @@ def is_vaapi_available():
     return result.returncode == 0
 
 use_vaapi = False
-if is_vaapi_available():
-    use_vaapi = True
-    sys.path.insert(0, "/usr/lib/python3/dist-packages")
-    print("VA-API detected, path added.")
+if os.name != "nt":
+    if is_vaapi_available():
+        use_vaapi = True
+        sys.path.insert(0, "/usr/lib/python3/dist-packages")
+        print("VA-API detected, path added.")
 
 import cv2
 print(cv2.getBuildInformation())

@@ -27,8 +27,11 @@ if %PY_MAJOR% EQU 3 if %PY_MINOR% EQU 11 (
     echo Python version not supported for DX-RunTime installation
 )
 
+if !errorlevel! neq 0 (
+    exit /b 1
+)
+
 echo Setup complete!
-pause
 exit /b 0
 
 :python_not_installed

@@ -65,6 +65,7 @@ class VideoProducer(QObject):
                 self.__video_path_current = f"{video_path}"
                 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
             else:
+                self.__is_rtsp_source = False
                 self.__video_path_current = os.path.join(self.__base_path, video_path + ".mp4")
 
             self.__is_camera_source = False
@@ -75,6 +76,8 @@ class VideoProducer(QObject):
         if use_vaapi:
             self.__video_capture = cv2.VideoCapture(self.__generate_gst_pipeline(self.__video_path_current),
                                                     cv2.CAP_GSTREAMER)
+        elif self.__is_rtsp_source:
+            self.__video_capture = cv2.VideoCapture(self.__video_path_current, cv2.CAP_FFMPEG)
         else:
             self.__video_capture = cv2.VideoCapture(self.__video_path_current)
 

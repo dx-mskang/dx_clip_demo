@@ -22,13 +22,16 @@ REM 3. Install DX-RunTime Python package based on Python version
 if %PY_MAJOR% EQU 3 if %PY_MINOR% EQU 11 (
     pip install install_dep/windows_python311/dx_engine-1.0.0-py3-none-any.whl
 ) else if %PY_MAJOR% EQU 3 if %PY_MINOR% EQU 12 (
-    pip install install_dep/windows_python312/dx_engine-1.0.0-py3-none-any.whl
+    pip install install_dep/windows_python312/dx_engine-1.0.1-py3-none-any.whl
 ) else (
     echo Python version not supported for DX-RunTime installation
 )
 
+if !errorlevel! neq 0 (
+    exit /b 1
+)
+
 echo Setup complete!
-pause
 exit /b 0
 
 :python_not_installed

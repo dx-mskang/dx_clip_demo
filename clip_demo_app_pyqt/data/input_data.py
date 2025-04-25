@@ -54,6 +54,8 @@ class InputData(Singleton):
             self.__default_sentence_score_max = data.get("default_sentence_score_max", 1.0)
             self.__default_sentence_score_threshold = data.get("default_sentence_score_threshold", 0.5)
             self.__video_path_lists = data.get("video_path_lists", [])
+            if os.name == "nt":
+                self.__video_path_lists = data.get("video_path_lists",[])[1:]
             from clip_demo_app_pyqt.model.sentence_model import Sentence
             self.__sentence_list = [Sentence.from_dict(s) for s in data.get("sentence_list", [])]
         if path == self.__default_path:
