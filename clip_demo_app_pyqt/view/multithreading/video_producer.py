@@ -11,7 +11,7 @@ import numpy as np
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QImage
 
-print(cv2.getBuildInformation())
+# print(cv2.getBuildInformation())
 
 def is_vaapi_available():
     result = subprocess.run(
@@ -70,6 +70,7 @@ class VideoProducer(QObject):
 
             self.__is_camera_source = False
 
+        self.__video_capture = cv2.VideoCapture()
         self.__video_size = video_size
         self.__video_label_size = video_size
 
@@ -77,11 +78,14 @@ class VideoProducer(QObject):
             self.__video_capture = cv2.VideoCapture(self.__generate_gst_pipeline(self.__video_path_current),
                                                     cv2.CAP_GSTREAMER)
         elif self.__is_rtsp_source:
-            self.__video_capture = cv2.VideoCapture(self.__video_path_current, cv2.CAP_FFMPEG)
+            if self.__rtsp_url_test(self.__video_path_current):
+                self.__video_capture = cv2.VideoCapture(self.__video_path_current, cv2.CAP_FFMPEG)
+            else:
+                self.__change_video(True)
         else:
             self.__video_capture = cv2.VideoCapture(self.__video_path_current)
 
-        if not self.__video_capture:
+        if not self.__video_capture.isOpened():
             logging.error("Error: Could not open video.")
             self.__video_fps = 30       # default video fps value
         else:
@@ -89,6 +93,50 @@ class VideoProducer(QObject):
             logging.debug("channel_idx:" + str(self._channel_idx) + f"FPS: {self.__video_fps}")
 
         self.__current_video_frame = np.zeros((self.__video_label_size[1], self.__video_label_size[0], 3), dtype=np.uint8)
+    
+    def __rtsp_url_test(self, rtsp_url_path):
+        cap = cv2.VideoCapture(rtsp_url_path)
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)  # timeout (OpenCV >=4.5)
+        if cap.isOpened():
+            frame = None
+            lock = threading.Lock()
+            stop_reader = False
+            def reader():
+                nonlocal frame, stop_reader
+                while not stop_reader:
+                    ret = False
+                    try:
+                        ret, new_frame = cap.read()
+                    except Exception as e:
+                        pass
+                    with lock:
+                        if ret:
+                            frame = new_frame
+            reader_thread = threading.Thread(target=reader, daemon=True)
+            reader_thread.start()
+            
+            while True:
+                start_time = time.time()
+                while time.time() - start_time < 5:
+                    with lock:
+                        if frame is not None:
+                            break
+                    time.sleep(1)
+                break
+
+            stop_reader = True
+            
+            if frame is None:
+                print("[DXAPP][Notify] No frame received within 5 seconds. Proceeding to the next stream.")
+                try:
+                    cap.release()
+                except Exception as e:
+                    pass
+                return False
+            else:
+                reader_thread.join()
+                cap.release()
+                return True
 
     def __generate_gst_pipeline(self, video_path):
         # width = self.__video_label_size[0]
@@ -122,8 +170,9 @@ class VideoProducer(QObject):
 
     def set_video_label_size(self, size: Tuple[int, int]):
         self.__video_label_size = size
-
+    
     def capture_frame(self):
+        
         logging.debug("VideoProducer thread started, channel_id: " + str(self._channel_idx))
 
         if self.__running is False or self.__pause_thread:
@@ -141,7 +190,10 @@ class VideoProducer(QObject):
                 return None
 
         self.__update_current_video_frame()
-
+        if not self.ret:
+            self.__change_video(True)
+        else:
+            self.__current_video_frame = self.frame
         # Frame processing and signal transmission
         rgb_image = cv2.cvtColor(self.__current_video_frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
@@ -169,24 +221,18 @@ class VideoProducer(QObject):
 
     def __update_current_video_frame(self):
         with self.__change_video_lock:
-            if not self.__video_capture.isOpened():
-                logging.debug("Failed to open video capture")
-            else:
-                ret, frame = self.__video_capture.read()
-
-        if not ret:
-            self.__change_video(True)
-        else:
-            self.__current_video_frame = frame
+            self.ret, self.frame = self.__video_capture.read()
 
     def __change_video(self, is_next=False):
         camera_mode = False
-        if self.video_path_list[0] == '/dev/video0' or self.video_path_list[self.__current_index].startswith("rtsp"):
+        if self.video_path_list[0] == '/dev/video0':# or self.video_path_list[self.__current_index].startswith("rtsp"):
             camera_mode = True
             is_next = False
 
         if is_next:
             self.__current_index = 0 if self.__current_index + 1 == len(self.video_path_list) else self.__current_index + 1
+            if self.video_path_list[self.__current_index].startswith("rtsp"):
+                self.__current_index = self.__current_index + 1
 
         if camera_mode:
             self.__video_path_current = os.path.join(self.video_path_list[self.__current_index])
@@ -194,7 +240,8 @@ class VideoProducer(QObject):
             self.__video_path_current = os.path.join(self.__base_path,
                                                      self.video_path_list[self.__current_index] + ".mp4")
         with self.__change_video_lock:
-            self.__video_capture.release()
+            if self.__video_capture.isOpened():
+                self.__video_capture.release()
             if use_vaapi:
                 self.__video_capture = cv2.VideoCapture(self.__generate_gst_pipeline(self.__video_path_current),
                                                         cv2.CAP_GSTREAMER)

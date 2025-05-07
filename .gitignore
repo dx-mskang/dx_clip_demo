@@ -10,6 +10,7 @@ profiler.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*__init__.py
 
 **/docs/**/*.pdf
 **/docs/**/*.zip
