@@ -13,6 +13,9 @@ from PyQt5.QtGui import QImage
 
 # print(cv2.getBuildInformation())
 
+# Supported video file extensions
+SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ogv']
+
 def is_vaapi_available():
     result = subprocess.run(
         ["gst-inspect-1.0", "vaapi"],
@@ -66,7 +69,8 @@ class VideoProducer(QObject):
                 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
             else:
                 self.__is_rtsp_source = False
-                self.__video_path_current = os.path.join(self.__base_path, video_path + ".mp4")
+                # Find video file with supported extension
+                self.__video_path_current = self.__find_video_file(video_path)
 
             self.__is_camera_source = False
 
@@ -94,6 +98,27 @@ class VideoProducer(QObject):
 
         self.__current_video_frame = np.zeros((self.__video_label_size[1], self.__video_label_size[0], 3), dtype=np.uint8)
     
+    def __find_video_file(self, video_name: str) -> str:
+        """
+        Find video file with supported extension in the base path
+        
+        Args:
+            video_name: Name of the video file without extension
+            
+        Returns:
+            Full path to the video file with extension
+        """
+        for ext in SUPPORTED_VIDEO_EXTENSIONS:
+            video_path = os.path.join(self.__base_path, video_name + ext)
+            if os.path.exists(video_path):
+                logging.debug(f"Found video file: {video_path}")
+                return video_path
+        
+        # If no file found with supported extension, try with .mp4 as fallback
+        fallback_path = os.path.join(self.__base_path, video_name + ".mp4")
+        logging.warning(f"No video file found with supported extensions for '{video_name}'. Using fallback: {fallback_path}")
+        return fallback_path
+
     def __rtsp_url_test(self, rtsp_url_path):
         cap = cv2.VideoCapture(rtsp_url_path)
         cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)  # timeout (OpenCV >=4.5)
@@ -237,8 +262,9 @@ class VideoProducer(QObject):
         if camera_mode:
             self.__video_path_current = os.path.join(self.video_path_list[self.__current_index])
         else:
-            self.__video_path_current = os.path.join(self.__base_path,
-                                                     self.video_path_list[self.__current_index] + ".mp4")
+            # Find video file with supported extension
+            self.__video_path_current = self.__find_video_file(self.video_path_list[self.__current_index])
+            
         with self.__change_video_lock:
             if self.__video_capture.isOpened():
                 self.__video_capture.release()
