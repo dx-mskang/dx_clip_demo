@@ -2,11 +2,14 @@ import numpy as np
 import torch
 
 from dx_engine import InferenceEngine
+from dx_engine import InferenceOption
 
 
 class DXVideoEncoder:
     def __init__(self, model_path: str):
-        self.ie = InferenceEngine(model_path)
+        io = InferenceOption()
+        io.set_use_ort(False)
+        self.ie = InferenceEngine(model_path, io)
         self.cpu_offloaded = False
         if "cpu_0" in self.ie.task_order():
             self.cpu_offloaded = True
@@ -22,7 +25,7 @@ class DXVideoEncoder:
         if not self.cpu_offloaded:
             x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        request_id = self.ie.RunAsync(x, args)
+        request_id = self.ie.RunAsync([x], args)
         return request_id
 
     def wait(self, request_id):
@@ -36,7 +39,7 @@ class DXVideoEncoder:
         if not self.cpu_offloaded:
             x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        o = self.ie.Run(x)[0]
+        o = self.ie.Run([x])[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
