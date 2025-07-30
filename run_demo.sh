@@ -17,10 +17,6 @@ show_help() {
   exit 0
 }
 
-# Default values
-DXRT_SRC_PATH="/deepx/dx_rt/"
-DOCKER_VOLUME_PATH=${DOCKER_VOLUME_PATH}
-
 # Parse arguments
 for i in "$@"; do
   case $i in

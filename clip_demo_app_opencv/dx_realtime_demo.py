@@ -19,12 +19,15 @@ from tqdm import tqdm
 import threading
 
 def is_vaapi_available():
-    result = subprocess.run(
-        ["gst-inspect-1.0", "vaapi"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            ["gst-inspect-1.0", "vaapidecodebin"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
 
 use_vaapi = False
 if os.name != "nt":
@@ -72,7 +75,7 @@ def get_args():
     parser.add_argument("--video_encoder_onnx", type=str,
                         default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx",
                         help="ONNX file path for video encoder")
-    parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/clip_vit_240912.dxnn",
+    parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/clip_vit_250331.dxnn",
                         help="ONNX file path for video encoder")
 
     return parser.parse_args()

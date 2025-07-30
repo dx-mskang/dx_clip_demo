@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument("--token_embedder_onnx", type=str, default="assets/onnx/embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for token embedder")
     parser.add_argument("--text_encoder_onnx", type=str, default="assets/onnx/textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for text encoder")
     parser.add_argument("--video_encoder_onnx", type=str, default="assets/onnx/visual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx", help="ONNX file path for video encoder")
-    parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/clip_vit_240912.dxnn", help="ONNX file path for video encoder")
+    parser.add_argument("--video_encoder_dxnn", type=str, default="assets/dxnn/clip_vit_250331.dxnn", help="ONNX file path for video encoder")
     parser.add_argument("--torch_model", type=str, default="assets/pth/clip4clip_msrvtt_b128_ep5.pth", help="pth file path for torch model")
     
     return parser.parse_args()
@@ -145,10 +145,14 @@ class VideoThread(threading.Thread):
         cv2.putText(self.new_text_pannel_frame, "{}. ".format(argmax_index) + self.gt_text_list[argmax_index] + ", sim : {:.3}".format(new_logit[0][0]), (5, 15 + (20 * argmax_index)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
 
 
-
 class DXVideoEncoder():
     def __init__(self, model_path: str):
-        self.ie = InferenceEngine(model_path)
+        try:
+            self.ie = InferenceEngine(model_path)
+        except Exception as e:
+            print(e)
+            self.ie = None
+            
         self.cpu_offloaded = False
         if "cpu_0" in self.ie.task_order():
             self.cpu_offloaded = True

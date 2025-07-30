@@ -8,7 +8,7 @@ show_help() {
   echo "Usage: $(basename "$0") [OPTIONS]"
   echo "Options:"
   echo "  --app_type=<str>             Set Application type (pyqt | opencv)"
-  echo "  --dxrt_src_path=<path>       Set DXRT source path (default: /deepx/dx_rt/)"
+  echo "  --dxrt_src_path=<path>       Set DXRT source path (default: /deepx/dx-runtime/dx_rt/)"
   echo "  --docker_volume_path=<path>  Set Docker volume path (required in container mode)"
   echo "  --help                       Show this help message"
 
@@ -20,7 +20,7 @@ show_help() {
 }
 
 # Default values
-DXRT_SRC_PATH="/deepx/dx_rt/"
+DXRT_SRC_PATH="/deepx/dx-runtime/dx_rt/"
 DOCKER_VOLUME_PATH=${DOCKER_VOLUME_PATH}
 
 # Parse arguments
@@ -93,7 +93,7 @@ else
     echo "(host mode detected)"
     SETUP_CLIP_ASSET_ARGS="--output=${ASSET_PATH} --symlink_target_path=../workspace/res/clip"
     SETUP_CLIP_VIDEO_ARGS="--output=${VIDEO_PATH} --symlink_target_path=../workspace/res/videos"
-    VENV_SYMLINK_TARGET_PATH="../workspace/venv/clip/${APP_TYPE}"
+    VENV_SYMLINK_TARGET_PATH="../workspace/venv/clip/${APP_TYPE}-local"
     VENV_SYMLINK_TARGET_PATH_ARGS="--venv_symlink_target_path=${VENV_SYMLINK_TARGET_PATH}"
 fi
 

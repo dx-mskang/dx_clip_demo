@@ -38,7 +38,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
-GET_RES_CMD="$SCRIPT_DIR/scripts/get_resource.sh --src_path=$SOURCE_PATH --output=$OUTPUT_DIR $SYMLINK_ARGS"
+GET_RES_CMD="$SCRIPT_DIR/scripts/get_resource.sh --src_path=$SOURCE_PATH --output=$OUTPUT_DIR $SYMLINK_ARGS $FORCE_ARGS --extract"
 echo "Get Resources from remote server ..."
 echo "$GET_RES_CMD"
 

@@ -17,12 +17,15 @@ from PyQt5.QtGui import QImage
 SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ogv']
 
 def is_vaapi_available():
-    result = subprocess.run(
-        ["gst-inspect-1.0", "vaapi"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            ["gst-inspect-1.0", "vaapidecodebin"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
 
 use_vaapi = False
 if os.name != "nt":

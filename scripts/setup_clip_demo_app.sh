@@ -46,7 +46,7 @@ make_venv(){
 
   # create venv
   python3 -m venv ${VENV_ORIGIN_DIR} --system-site-packages
-      source ${VENV_ORIGIN_DIR}/bin/activate
+  source ${VENV_ORIGIN_DIR}/bin/activate
 
   # create venv failed check
   if [ $? -ne 0 ]; then

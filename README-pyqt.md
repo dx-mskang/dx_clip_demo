@@ -54,7 +54,7 @@ assets
 │   ├── two_childrens_are_fighting.mp4
 │   └── violence_in_shopping_mall_short.mp4
 ├── dxnn
-│   ├── clip_vit_240912.dxnn
+│   ├── clip_vit_250331.dxnn
 └── onnx
     ├── embedding_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
     ├── textual_f32_op14_clip4clip_msrvtt_b128_ep5.onnx
