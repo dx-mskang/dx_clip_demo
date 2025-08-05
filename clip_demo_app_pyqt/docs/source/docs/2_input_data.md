@@ -2,16 +2,16 @@
 
 ## Video Input
 
-The demo app is configured to handle 16 videos located in `assets/demo_videos/*.mp4`. This configuration is managed in JSON format in the `clip_demo_app_pyqt/data/default_data.json` file.
+The demo app is configured to handle 16 videos located in `assets/demo_videos/*.mp4 or *.mov`. This configuration is managed in JSON format in the `clip_demo_app_pyqt/data/default_data.json` file.
 
 ```json
 {
   "video_path_lists": [
     [
-      "demo_videos/fire_on_car"
+      "demo_videos/burning_car"
     ],
     [
-      "demo_videos/dam_explosion_short"
+      "demo_videos/crowded_subway_platform"
     ],
     ...
   ]
@@ -24,35 +24,47 @@ Each video is associated with 26 sentences, along with the corresponding `score_
 
 ```json
 {
+  "video_path_lists": [
+    [
+      "demo_videos/burning_car"
+    ],
+    [
+      "demo_videos/crowded_subway_platform"
+    ],
+    ...
+  ],
+  ...
   "sentence_list": [
     {
-      "video": "demo_videos/crowded_in_subway",
-      "sentences": [
-        {
-          "text": "The subway is crowded with people",
-          "score_min": 0.27,
-          "score_max": 0.29,
-          "score_threshold": 0.28
-        },
-        {
-          "text": "People are crowded in the subway",
-          "score_min": 0.27,
-          "score_max": 0.29,
-          "score_threshold": 0.28
-        }
-      ]
+        "text": "Fire is coming out of the car",
+        "min_score": 0.23,
+        "max_score": 0.26,
+        "threshold": 0.24,
+        ...
     },
     {
-      "video": "demo_videos/heavy_structure_falling",
-      "sentences": [
-        {
-          "text": "Heavy objects are fallen",
-          "score_min": 0.21,
-          "score_max": 0.25,
-          "score_threshold": 0.225
-        }
-      ]
+        "text": "The car is exploding",
+        "min_score": 0.24,
+        "max_score": 0.28,
+        "threshold": 0.26,
+        ...
     },
+    ...
+    
+    {
+      "text": "The subway is crowded with people",
+      "score_min": 0.27,
+      "score_max": 0.29,
+      "score_threshold": 0.28,
+      ...
+    },
+    {
+      "text": "People is crowded in the subway",
+      "score_min": 0.27,
+      "score_max": 0.29,
+      "score_threshold": 0.28,
+      ...
+    }
     ...
   ]
 }

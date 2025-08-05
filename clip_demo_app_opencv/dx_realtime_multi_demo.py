@@ -48,7 +48,8 @@ if os.name == "nt":
         if os.path.exists(dxrtlib):
             ctypes.windll.LoadLibrary(dxrtlib)
 
-from dx_engine import InferenceEngine
+from dx_engine import InferenceEngine, InferenceOption
+
 
 # 디스플레이 화면의 크기를 알기 위함.
 import tkinter as tk
@@ -71,6 +72,30 @@ DEVICE = "cpu"
 
 global_input = ""
 global_quit = False
+
+# Supported video file extensions
+SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ogv']
+
+def _find_video_file(base_path: str, video_name: str) -> str:
+    """
+    Find video file with supported extension in the base path
+    
+    Args:
+        video_name: Name of the video file without extension
+        
+    Returns:
+        Full path to the video file with extension
+    """
+    for ext in SUPPORTED_VIDEO_EXTENSIONS:
+        video_path = os.path.join(base_path, video_name + ext)
+        if os.path.exists(video_path):
+            print(f"Found video file: {video_path}")
+            return video_path
+    
+    # If no file found with supported extension, try with .mp4 as fallback
+    fallback_path = os.path.join(base_path, video_name + ".mp4")
+    print(f"No video file found with supported extensions for '{video_name}'. Using fallback: {fallback_path}")
+    return fallback_path
 
 def get_args():
     # fmt: off
@@ -149,9 +174,11 @@ def get_text_vectors(text_list:List[str], embedder, encoder):
 
 class DXVideoEncoder():
     def __init__(self, model_path: str):
-        self.ie = InferenceEngine(model_path)
+        io = InferenceOption()
+        io.set_use_ort(False)
+        self.ie = InferenceEngine(model_path, io)
         self.cpu_offloaded = False
-        if "cpu_0" in self.ie.task_order():
+        if "cpu_0" in self.ie.get_task_order():
             self.cpu_offloaded = True
     
     def run(self, x):
@@ -159,7 +186,7 @@ class DXVideoEncoder():
         if not self.cpu_offloaded:
             x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        o = self.ie.Run(x)[0]
+        o = self.ie.run([x])[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
@@ -225,7 +252,7 @@ class SingleVideoThread(threading.Thread):
             self.base_path = base_path
             self.video_path_list = video_path_list
             self.current_index = 0
-            self.video_path_current = os.path.join(self.base_path, self.video_path_list[self.current_index] + ".mp4")
+            self.video_path_current = _find_video_file(self.base_path, self.video_path_list[self.current_index])
 
         if use_vaapi:
             self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current), cv2.CAP_GSTREAMER)
@@ -299,7 +326,7 @@ class SingleVideoThread(threading.Thread):
         ret, frame = self.cap.read()
         if not ret:
             self.current_index = 0 if self.current_index + 1 == len(self.video_path_list) else self.current_index + 1
-            self.video_path_current = os.path.join(self.base_path, self.video_path_list[self.current_index] + ".mp4")
+            self.video_path_current = _find_video_file(self.base_path, self.video_path_list[self.current_index])
             self.cap.release()
             if use_vaapi:
                 self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current), cv2.CAP_GSTREAMER)
@@ -532,54 +559,106 @@ def main():
 
     gt_video_path_lists = [
         [
-            "demo_videos/fire_on_car",
+            "demo_videos/burning_car",
         ],
         [
-            "demo_videos/dam_explosion_short",
+            "demo_videos/crowded_subway_platform",
         ],
         [
-            "demo_videos/violence_in_shopping_mall_short",
+            "demo_videos/elderly_woman_fallen_indoor",
         ],
         [
-            "demo_videos/gun_terrorism_in_airport",
+            "demo_videos/kitchen_stove_fire",
         ],
         [
-            "demo_videos/crowded_in_subway",
+            "demo_videos/men_fighting_indoors",
         ],
         [
-            "demo_videos/heavy_structure_falling",
+            "demo_videos/burning_car",
         ],
         [
-            "demo_videos/electrical_outlet_is_emitting_smoke",
+            "demo_videos/crowded_subway_platform",
         ],
         [
-            "demo_videos/pot_is_catching_fire",
+            "demo_videos/elderly_woman_fallen_indoor",
         ],
         [
-            "demo_videos/falldown_on_the_grass",
+            "demo_videos/kitchen_stove_fire",
         ],
         [
-            "demo_videos/fighting_on_field",
+            "demo_videos/men_fighting_indoors",
         ],
         [
-            "demo_videos/fire_in_the_kitchen",
+            "demo_videos/burning_car",
         ],
         [
-            "demo_videos/group_fight_on_the_streat",
+            "demo_videos/crowded_subway_platform",
         ],
         [
-            "demo_videos/iron_is_on_fire",
+            "demo_videos/elderly_woman_fallen_indoor",
         ],
         [
-            "demo_videos/someone_helps_old_man_who_is_fallting_down",
+            "demo_videos/kitchen_stove_fire",
         ],
         [
-            "demo_videos/the_pile_of_sockets_is_smoky_and_on_fire"
+            "demo_videos/men_fighting_indoors",
         ],
         [
-            "demo_videos/two_childrens_are_fighting",
+            "demo_videos/burning_car",
         ],
     ]
+    
+    # gt_video_path_lists = [
+    #     [
+    #         "demo_videos/fire_on_car",
+    #     ],
+    #     [
+    #         "demo_videos/dam_explosion_short",
+    #     ],
+    #     [
+    #         "demo_videos/violence_in_shopping_mall_short",
+    #     ],
+    #     [
+    #         "demo_videos/gun_terrorism_in_airport",
+    #     ],
+    #     [
+    #         "demo_videos/crowded_in_subway",
+    #     ],
+    #     [
+    #         "demo_videos/heavy_structure_falling",
+    #     ],
+    #     [
+    #         "demo_videos/electrical_outlet_is_emitting_smoke",
+    #     ],
+    #     [
+    #         "demo_videos/pot_is_catching_fire",
+    #     ],
+    #     [
+    #         "demo_videos/falldown_on_the_grass",
+    #     ],
+    #     [
+    #         "demo_videos/fighting_on_field",
+    #     ],
+    #     [
+    #         "demo_videos/fire_in_the_kitchen",
+    #     ],
+    #     [
+    #         "demo_videos/group_fight_on_the_streat",
+    #     ],
+    #     [
+    #         "demo_videos/iron_is_on_fire",
+    #     ],
+    #     [
+    #         "demo_videos/someone_helps_old_man_who_is_fallting_down",
+    #     ],
+    #     [
+    #         "demo_videos/the_pile_of_sockets_is_smoky_and_on_fire"
+    #     ],
+    #     [
+    #         "demo_videos/two_childrens_are_fighting",
+    #     ],
+    # ]
+
     gt_text_alarm_level = [
         [0.27, 0.29, 0.28],      # "The subway is crowded with people",
         [0.27, 0.29, 0.28],      # "People is crowded in the subway",

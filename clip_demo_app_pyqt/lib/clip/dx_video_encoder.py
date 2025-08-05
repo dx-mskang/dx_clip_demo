@@ -11,21 +11,21 @@ class DXVideoEncoder:
         io.set_use_ort(False)
         self.ie = InferenceEngine(model_path, io)
         self.cpu_offloaded = False
-        if "cpu_0" in self.ie.task_order():
+        if "cpu_0" in self.ie.get_task_order():
             self.cpu_offloaded = True
 
     def __del__(self):
         print("DXVideoEncoder 객체가 삭제됩니다!")  # 가비지 컬렉션 확인용
 
     # def register_callback(self, func):
-    #     self.ie.RegisterCallBack(func)
+    #     self.ie.register_callback(func)
     
     def run_async(self, x, args):
         x = x.numpy()
         if not self.cpu_offloaded:
             x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        request_id = self.ie.RunAsync([x], args)
+        request_id = self.ie.run_async([x], args)
         return request_id
 
     def wait(self, request_id):
@@ -39,7 +39,7 @@ class DXVideoEncoder:
         if not self.cpu_offloaded:
             x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        o = self.ie.Run([x])[0]
+        o = self.ie.run([x])[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o

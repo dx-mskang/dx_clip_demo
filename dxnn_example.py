@@ -2,15 +2,17 @@ import numpy as np
 import pytest
 import torch
 from PIL import Image
-from dx_engine import InferenceEngine
+from dx_engine import InferenceEngine, InferenceOption
 
 import clip
 
 class DXVideoEncoder():
     def __init__(self, model_path: str):
-        self.ie = InferenceEngine(model_path)
+        io = InferenceOption()
+        io.set_use_ort(False)
+        self.ie = InferenceEngine(model_path, io)
         self.cpu_offloading = False
-        if "cpu_0" in self.ie.task_order():
+        if "cpu_0" in self.ie.get_task_order():
             self.cpu_offloading = True
         
     def run(self, xs):
@@ -21,7 +23,7 @@ class DXVideoEncoder():
             if not self.cpu_offloading:
                 x = self.preprocess_numpy(x)
             x = np.ascontiguousarray(x)
-            o = self.ie.Run(x)[0]
+            o = self.ie.run([x])[0]
             o = self.postprocess_numpy(o)
             o = torch.from_numpy(o)
             ret.append(o)

@@ -65,7 +65,7 @@ if __name__ == "__main__":
         x = np.transpose(x, [0, 2, 4, 3, 5, 1])
         x = np.reshape(x, [1, 49, 48, 64])
         x = np.transpose(x, [0, 2, 1, 3])
-        outputs = ie.Run(x)[0]
+        outputs = ie.run([x])[0]
         x = outputs[:, 0]
         x = x / np.linalg.norm(x, axis=-1, keepdims=True)
         callback_cnt+=1

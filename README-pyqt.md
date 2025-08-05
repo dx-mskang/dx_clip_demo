@@ -37,22 +37,11 @@ assets
 │   ├── MSRVTT_JSFUSION_test.csv
 │   └── MSRVTT_Videos
 ├── demo_videos
-│   ├── crowded_in_subway.mp4
-│   ├── dam_explosion_short.mp4
-│   ├── electrical_outlet_is_emitting_smoke.mp4
-│   ├── falldown_on_the_grass.mp4
-│   ├── fighting_on_field.mp4
-│   ├── fire_in_the_kitchen.mp4
-│   ├── fire_on_car.mp4
-│   ├── group_fight_on_the_streat.mp4
-│   ├── gun_terrorism_in_airport.mp4
-│   ├── heavy_structure_falling.mp4
-│   ├── iron_is_on_fire.mp4
-│   ├── pot_is_catching_fire.mp4
-│   ├── someone_helps_old_man_who_is_fallting_down.mp4
-│   ├── the_pile_of_sockets_is_smoky_and_on_fire.mp4
-│   ├── two_childrens_are_fighting.mp4
-│   └── violence_in_shopping_mall_short.mp4
+│   ├── burning_car.mov
+│   ├── crowded_subway_platform.mov
+│   ├── elderly_woman_fallen_indoor.mov
+│   ├── kitchen_stove_fire.mov
+│   └── men_fighting_indoors.mov
 ├── dxnn
 │   ├── clip_vit_250331.dxnn
 └── onnx

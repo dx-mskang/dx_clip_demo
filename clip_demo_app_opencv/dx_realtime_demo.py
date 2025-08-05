@@ -46,11 +46,36 @@ if os.name == "nt":
         if os.path.exists(dxrtlib):
             ctypes.windll.LoadLibrary(dxrtlib)
 
-from dx_engine import InferenceEngine
+from dx_engine import InferenceEngine, InferenceOption
+
+# Global Variables
 
 global_input = ""
 global_quit = False
 
+# Supported video file extensions
+SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ogv']
+
+def _find_video_file(base_path: str, video_name: str) -> str:
+    """
+    Find video file with supported extension in the base path
+    
+    Args:
+        video_name: Name of the video file without extension
+        
+    Returns:
+        Full path to the video file with extension
+    """
+    for ext in SUPPORTED_VIDEO_EXTENSIONS:
+        video_path = os.path.join(base_path, video_name + ext)
+        if os.path.exists(video_path):
+            print(f"Found video file: {video_path}")
+            return video_path
+    
+    # If no file found with supported extension, try with .mp4 as fallback
+    fallback_path = os.path.join(base_path, video_name + ".mp4")
+    print(f"No video file found with supported extensions for '{video_name}'. Using fallback: {fallback_path}")
+    return fallback_path
 
 def get_args():
     # fmt: off
@@ -131,9 +156,11 @@ def _loose_similarity(text_vectors, video_vectors, video_frame_mask):
 
 class DXVideoEncoder():
     def __init__(self, model_path: str):
-        self.ie = InferenceEngine(model_path)
+        io = InferenceOption()
+        io.set_use_ort(False)
+        self.ie = InferenceEngine(model_path, io)
         self.cpu_offloaded = False
-        if "cpu_0" in self.ie.task_order():
+        if "cpu_0" in self.ie.get_task_order():
             self.cpu_offloaded = True
     
     def run(self, x):
@@ -141,7 +168,7 @@ class DXVideoEncoder():
         if not self.cpu_offloaded:
             x = self.preprocess_numpy(x)
         x = np.ascontiguousarray(x)
-        o = self.ie.Run(x)[0]
+        o = self.ie.run([x])[0]
         o = self.postprocess_numpy(o)
         o = torch.from_numpy(o)
         return o
@@ -199,6 +226,7 @@ class VideoThread(threading.Thread):
     def __init__(self, features_path, video_paths, gt_text_list):
         super().__init__()
         if features_path == "0":
+            print("[DEBUG] is camera source : TRUE")
             self.is_camera_source = True
             self.video_paths = ["/dev/video0"]
             self.current_index = 0
@@ -208,7 +236,7 @@ class VideoThread(threading.Thread):
             self.features_path = features_path
             self.video_paths = video_paths
             self.current_index = 0
-            self.video_path_current = os.path.join(features_path, self.video_paths[self.current_index] + ".mp4")
+            self.video_path_current = _find_video_file(features_path, self.video_paths[self.current_index])
         self.gt_text_list = gt_text_list
         self.stop_thread = False
         self.final_text = ""
@@ -322,12 +350,17 @@ class VideoThread(threading.Thread):
             if global_quit:
                 self.released = True
                 break
+
             if not ret:
+                if self.is_camera_source:
+                    print("[DEBUG] camera source is abnormally")
+                    self.stop()
+                    break
+                
                 # 현재 비디오가 끝났을 때 다음 비디오로 넘어감
                 self.current_index += 1
                 if self.current_index < len(self.video_paths):
-                    self.video_path_current = os.path.join(self.features_path,
-                                                           self.video_paths[self.current_index] + ".mp4")
+                    self.video_path_current = _find_video_file(self.features_path, self.video_paths[self.current_index])
                     self.cap.release()
                     if use_vaapi:
                         self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current),
@@ -338,8 +371,7 @@ class VideoThread(threading.Thread):
                     ret, self.original = self.cap.read()
                 else:
                     self.current_index = 0
-                    self.video_path_current = os.path.join(self.features_path,
-                                                           self.video_paths[self.current_index] + ".mp4")
+                    self.video_path_current = _find_video_file(self.features_path, self.video_paths[self.current_index])
                     self.cap.release()
                     if use_vaapi:
                         self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current),
@@ -388,6 +420,7 @@ class VideoThread(threading.Thread):
                 global_quit = True
                 self.released = True
                 break
+            
         self.cap.release()
         cv2.destroyAllWindows()
 
@@ -560,13 +593,21 @@ def main():
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
 
     gt_video_path_list = [
-        "fire_on_car",
-        "dam_explosion_short",
-        "violence_in_shopping_mall_short",
-        "gun_terrorism_in_airport",
-        "crowded_in_subway",
-        "heavy_structure_falling",
+        "burning_car",
+        "crowded_subway_platform",
+        "elderly_woman_fallen_indoor",
+        "kitchen_stove_fire",
+        "men_fighting_indoors",
     ]
+    
+    # gt_video_path_list = [
+    #     "fire_on_car",
+    #     "dam_explosion_short",
+    #     "violence_in_shopping_mall_short",
+    #     "gun_terrorism_in_airport",
+    #     "crowded_in_subway",
+    #     "heavy_structure_falling",
+    # ]
 
     gt_text_list = [
         "The subway is crowded with people",

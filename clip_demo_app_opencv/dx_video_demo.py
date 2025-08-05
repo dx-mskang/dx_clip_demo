@@ -23,7 +23,31 @@ if os.name == "nt":
         if os.path.exists(dxrtlib):
             ctypes.windll.LoadLibrary(dxrtlib)
             
-from dx_engine import InferenceEngine
+from dx_engine import InferenceEngine, InferenceOption
+
+# Supported video file extensions
+SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.ogv']
+
+def _find_video_file(base_path: str, video_name: str) -> str:
+    """
+    Find video file with supported extension in the base path
+    
+    Args:
+        video_name: Name of the video file without extension
+        
+    Returns:
+        Full path to the video file with extension
+    """
+    for ext in SUPPORTED_VIDEO_EXTENSIONS:
+        video_path = os.path.join(base_path, video_name + ext)
+        if os.path.exists(video_path):
+            print(f"Found video file: {video_path}")
+            return video_path
+    
+    # If no file found with supported extension, try with .mp4 as fallback
+    fallback_path = os.path.join(base_path, video_name + ".mp4")
+    print(f"No video file found with supported extensions for '{video_name}'. Using fallback: {fallback_path}")
+    return fallback_path
 
 def get_args():
     # fmt: off
@@ -90,7 +114,7 @@ class VideoThread(threading.Thread):
         self.video_paths = video_paths
         self.gt_text_list = gt_text_list
         self.current_index = 0
-        self.video_path_current = os.path.join(features_path, video_paths[self.current_index] + ".mp4")
+        self.video_path_current = _find_video_file(features_path, video_paths[self.current_index])
         self.cap = cv2.VideoCapture(self.video_path_current)
         frame_width = 640
         frame_height = 480
@@ -114,7 +138,7 @@ class VideoThread(threading.Thread):
                 # 현재 비디오가 끝났을 때 다음 비디오로 넘어감
                 self.current_index += 1
                 if self.current_index < len(self.video_paths):
-                    self.video_path_current = os.path.join(self.features_path, self.video_paths[self.current_index] + ".mp4")
+                    self.video_path_current = _find_video_file(self.features_path, self.video_paths[self.current_index])
                     self.cap.release()
                     self.cap = cv2.VideoCapture(self.video_path_current)
                     frame_width = 640
@@ -147,14 +171,11 @@ class VideoThread(threading.Thread):
 
 class DXVideoEncoder():
     def __init__(self, model_path: str):
-        try:
-            self.ie = InferenceEngine(model_path)
-        except Exception as e:
-            print(e)
-            self.ie = None
-            
+        io = InferenceOption()
+        io.set_use_ort(False)
+        self.ie = InferenceEngine(model_path, io)
         self.cpu_offloaded = False
-        if "cpu_0" in self.ie.task_order():
+        if "cpu_0" in self.ie.get_task_order():
             self.cpu_offloaded = True
     
     def run(self, x):
@@ -165,7 +186,7 @@ class DXVideoEncoder():
             if not self.cpu_offloaded:
                 inp = self.preprocess_numpy(inp)
             inp = np.ascontiguousarray(inp)
-            o = self.ie.Run(inp)[0]
+            o = self.ie.run([inp])[0]
             o = self.postprocess_numpy(o)
             o = torch.from_numpy(o)
             ret.append(o)
@@ -385,7 +406,7 @@ def main():
     t_sim_value = []
     for j in range(len(gt_video_path_list)):
         file_name = gt_video_path_list[j]
-        gt_video_path = os.path.join(args.features_path,file_name+".mp4")
+        gt_video_path = _find_video_file(args.features_path, file_name)
         
         get_video_data_time_s = time.perf_counter_ns()
         # torch video tensor : 11, 3, 224, 224 (num windows, channel, height, width) 

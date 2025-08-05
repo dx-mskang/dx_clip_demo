@@ -56,10 +56,10 @@ class TestArguments:
         self.age = age
         self.unique_id = unique_id
         
-        self.ie.RegisterCallBack(self.pp_callback)
+        self.ie.register_callback(self.pp_callback)
     
     def run_async(self, x):
-        self.ie.RunAsync(x, self)
+        self.ie.run_async([x], self)
         return 0
     
     @staticmethod
