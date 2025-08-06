@@ -3,106 +3,220 @@
 APP_TYPE=""
 ARCH_TYPE=""
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
-DXRT_SRC_PATH="/deepx/dx_rt"
-VENV_PATH="$SCRIPT_DIR/../../venv-${APP_TYPE}"
+PROJECT_ROOT=$(realpath -s "${SCRIPT_DIR}/..")
+RUNTIME_PATH=$(realpath -s "${PROJECT_ROOT}/../dx-runtime")
+DXRT_SRC_PATH="${RUNTIME_PATH}/dx_rt"
+VENV_PATH="${PROJECT_ROOT}/venv-${APP_TYPE}"
 VENV_SYMLINK_TARGET_PATH=""
+VENV_MAKE_ARGS=""
+USE_FORCE=0
+SKIP_INSTALL_PIP_PACKAGE=0
+PYTHON_EXE=""
+
+# color env settings
+source ${SCRIPT_DIR}/color_env.sh
 
 # Function to display help message
-show_help() {
+show_help(){
   echo "Usage: $(basename "$0") [OPTIONS]"
   echo "Example: $0 --app_type=pyqt --dxrt_src_path=/deepx/dx_rt --venv_path=./venv-${APP_TYPE} --symlink_target_path=../workspace/venv/clip/pyqt"
   echo "Options:"
   echo "  --app_type=<str>                     Set Application type (pyqt | opencv)"
   echo "  --arch_type=<str>                    Set Archtecture type (aarch64 | amd64)"
   echo "  --dxrt_src_path=<dir>                Set DXRT source path (default: /deepx/dx_rt/)"
-  echo "  --venv_path=<dir>                    Set virtual environment path (default: PROJECT_ROOT/venv-${APP_TYPE})"
-  echo "  [--venv_symlink_target_path=<dir>]   Set symlink target path for venv (default: PROJECT_ROOT/../workspace/venv/clip/${APP_TYPE})"
-  echo "  [--help]                             Show this help message"
+  echo "  --venv_path=<dir>                     Set virtual environment path (default: PROJECT_ROOT/venv-${APP_TYPE})"
+  echo "  [--venv_symlink_target_path=<dir>]    Set symlink target path for venv (ex: PROJECT_ROOT/../workspace/venv/${APP_TYPE})"
+  echo "  [--system-site-packages]              Set venv '--system-site-packages' option"
+  echo "  [--force]                             Force overwrite if the file already exists"
+  echo "  [--help]                              Show this help message"
 
-  if [ "$1" == "error" ]; then
-    echo "Error: Invalid or missing arguments."
+  if [ "$1" == "error" ] && [[ ! -n "$2" ]]; then
+    echo -e "${TAG_ERROR} Invalid or missing arguments."
     exit 1
+  elif [ "$1" == "error" ] && [[ -n "$2" ]]; then
+    echo -e "${TAG_ERROR} $2"
+    exit 1
+  elif [[ "$1" == "warn" ]] && [[ -n "$2" ]]; then
+    echo -e "${TAG_WARN} $2"
+    return 0
   fi
   exit 0
 }
 
 make_venv(){
-  echo "=== make_venv() ==="
-  #### 1. Set up Virtual Environment
+    echo -e "=== make_venv() ${TAG_START} ==="
+    #### 1. Set up Virtual Environment
 
-  # Print VENV_PATH for verification
-  echo "Using virtual environment at: $VENV_PATH"
+    # Print VENV_PATH for verification
+    echo "Using virtual environment at: $VENV_PATH"
 
-  # setting venv location 
-  VENV_ORIGIN_DIR="$VENV_PATH"
+    # setting venv location
+    VENV_ORIGIN_DIR="$VENV_PATH"
 
-  if [ -n "$VENV_SYMLINK_TARGET_PATH" ]; then
-      # if '--venv_symlink_target_path' option is exist.
-      VENV_ORIGIN_DIR="$VENV_SYMLINK_TARGET_PATH"
-      echo "creating python venv to --venv_symlink_target_path: $VENV_ORIGIN_DIR"
-  else
-      echo "creating python venv to this path: $VENV_ORIGIN_DIR"
-  fi
+    if [ -n "$VENV_SYMLINK_TARGET_PATH" ]; then
+        # if '--venv_symlink_target_path' option is exist.
+        VENV_ORIGIN_DIR="$VENV_SYMLINK_TARGET_PATH"
+        echo "creating python venv to --venv_symlink_target_path: $VENV_ORIGIN_DIR"
+    else
+        echo "creating python venv to this path: $VENV_ORIGIN_DIR"
+    fi
 
-  # create venv
-  python3 -m venv ${VENV_ORIGIN_DIR} --system-site-packages
-  source ${VENV_ORIGIN_DIR}/bin/activate
+    if [ -e "$VENV_ORIGIN_DIR" ] && [ "$USE_FORCE" -eq 0 ]; then
+        echo -e "${TAG_INFO} === MAKE VENV SKIP ==="
+        echo -e "${TAG_INFO} ** python venv path($VENV_ORIGIN_DIR) is already exist. so, skip to make venv **"
+        SKIP_INSTALL_PIP_PACKAGE=1
+    else
+        if [ -e "$VENV_ORIGIN_DIR" ] && [ "$USE_FORCE" -eq 1 ]; then
+            echo -e "${TAG_INFO} The '--force' option is enabled. so, remove previous python venv (${VENV_ORIGIN_DIR})"
+            rm -rf "$VENV_ORIGIN_DIR"
+        fi
 
-  # create venv failed check
-  if [ $? -ne 0 ]; then
-      echo "Creation venv failed!"
-      rm -rf "$VENV_ORIGIN_DIR"
-      exit 1
-  fi
+        for ver in 13 12 11 10 9 8 7 6; do
+            py_cmd="python3.$ver"
+            if command -v "$py_cmd" &>/dev/null; then
+                PYTHON_EXE="$py_cmd"
+                break
+            fi
+        done
 
-  echo "Creation venv complete."
+        if [ -z "$PYTHON_EXE" ]; then
+            echo "ERROR: Could not determine a suitable Python executable." >&2
+            exit 1
+        fi
+
+        # create venv
+        "$PYTHON_EXE" -m venv ${VENV_ORIGIN_DIR} ${VENV_MAKE_ARGS}
+
+        # create venv failed check
+        if [ $? -ne 0 ]; then
+            echo -e "${TAG_ERROR} Creation venv failed! Please try installing again with the '--force' option."
+            rm -rf "$VENV_ORIGIN_DIR"
+            echo -e "${TAG_ERROR} === MAKE VENV FAIL ==="
+            exit 1
+        fi
+
+        echo "Creation venv complete."
+    fi
 }
 
 make_symlink() {
-  echo "=== make_symlink() ==="
-  # if '--symlink_target_path' option is exist, make symbolic link
-  if [ -n "$VENV_SYMLINK_TARGET_PATH" ]; then
-      mkdir -p "$(dirname "$VENV_PATH")"
+    # If '--symlink_target_path' option is set, create a symbolic link
+    if [ -n "$VENV_SYMLINK_TARGET_PATH" ]; then
+        echo -e "=== make_symlink() ${TAG_START} ==="
 
-      ln -s "$VENV_SYMLINK_TARGET_REAL_PATH" "$VENV_PATH"
-      echo "Created symbolic link: $VENV_PATH -> $VENV_SYMLINK_TARGET_REAL_PATH"
-  fi
+        if [ "$USE_FORCE" -eq 1 ]; then
+            echo -e "${TAG_INFO} The '--force' option is enabled. so, remove previous python venv symlink (${VENV_PATH})"
+            rm -rf "$VENV_PATH"
+        fi
+
+        local prev_symlink_target_path="$(readlink -e "$VENV_PATH")"
+        local new_symlink_target_path="$(readlink -e "$VENV_SYMLINK_TARGET_PATH")"
+
+        # If the symlink already exists
+        if [ -L "$VENV_PATH" ] && [ -e "${prev_symlink_target_path}" ]; then
+            # If the current symlink target matches the new target, no further action is needed
+            if [ "${prev_symlink_target_path}" == "${new_symlink_target_path}" ]; then
+                echo -e "${TAG_INFO} ${VENV_PATH} is already properly configured. To force reset, use the '--force' option."
+                show_information_message
+                exit 0
+            # If the current symlink target is different, delete the existing symlink and recreate it
+            else
+                echo -e "${TAG_INFO} Existing symlink ${VENV_PATH} found but target mismatch. Deleting symlink and recreating."
+                echo -e "    - Previous target path: ${prev_symlink_target_path}"
+                echo -e "    - New target path: ${new_symlink_target_path}"
+                rm -rf "$VENV_PATH"
+            fi
+        else
+            echo -e "${TAG_INFO} Creating symlink to: ${VENV_PATH}"
+            echo -e "   - VENV_PATH: ${VENV_PATH}"
+            echo -e "   - VENV_SYMLINK_TARGET_PATH: ${VENV_SYMLINK_TARGET_PATH}"
+            echo -e "   - prev_symlink_target_path: ${prev_symlink_target_path}"
+            echo -e "   - new_symlink_target_path: ${new_symlink_target_path}"
+        fi
+
+        # Ensure the parent directory exists
+        mkdir -p "$(dirname "$VENV_PATH")"
+
+        # Create the new symbolic link
+        VENV_SYMLINK_TARGET_REAL_PATH=$(readlink -f $VENV_SYMLINK_TARGET_PATH)
+        ln -s "$VENV_SYMLINK_TARGET_REAL_PATH" "$VENV_PATH"
+
+        # Check if symlink creation failed
+        if [ $? -ne 0 ]; then
+            echo -e "${TAG_ERROR} Failed to create symlink! Please try again using the '--force' option."
+            rm -rf "$VENV_PATH"
+            echo -e "${TAG_ERROR} === MAKE SYMLINK FAIL ==="
+            exit 1
+        fi
+        echo "Created symbolic link: $VENV_PATH -> $VENV_SYMLINK_TARGET_REAL_PATH"
+        echo -e "=== make_symlink() ${TAG_DONE} ==="
+    else
+        echo -e "${TAG_INFO} '--symlink_target_path' option not set. Skipping symlink creation."
+    fi
+}
+
+activate_venv() {
+    echo -e "=== activate_venv() ${TAG_START} ==="
+
+    # activate venv
+    source ${VENV_PATH}/bin/activate
+    if [ $? -ne 0 ]; then
+        echo -e "${TAG_ERROR} Activate venv failed! Please try installing again with the '--force' option."
+        rm -rf "$VENV_PATH"
+        echo -e "${TAG_ERROR} === ACTIVATE VENV FAIL ==="
+        exit 1
+    fi
+
+    echo -e "=== activate_venv() ${TAG_DONE} ==="
 }
 
 setup_dx_engine(){
-  echo "=== setup_dx_engine() ==="
-  ### Setup DX-RunTime python package
-  #### 2. Install dx_engine (DX-Runtime Python package)
-  pushd ${DXRT_SRC_PATH}
-  ./build.sh
-  pushd ${DXRT_SRC_PATH}/python_package
-  pip install .
-  popd
-  popd
+    echo -e "=== setup_dx_engine() ${TAG_STRT} ==="
+    ### Setup dx_rt python package
+    #### 2. Install dx_engine (dx_rt Python package)
+    pushd ${DXRT_SRC_PATH}
+    ./build.sh --clean
+    pushd ${DXRT_SRC_PATH}/python_package
+    pip install .
+    popd
+    popd
+    echo -e "=== setup_dx_engine() ${TAG_DONE} ==="
 }
 
-setup_demo_app(){
-  echo "=== setup_demo_app() ==="
-  ### Setup Demo APP
-  if [[ "$APP_TYPE" == "opencv" ]]; then
-    echo "Running in OpenCV mode"
-    #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
-    pip install -r requirements.${APP_TYPE}.txt
-    pip install ./assets/CLIP
-  elif [[ "$APP_TYPE" == "pyqt" ]]; then
-    echo "Running in PyQt mode"
-    #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
-    sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-sync1 libxkbcommon-x11-0 libxcb-xkb1
-    sudo apt-get install -y libqt5multimedia5-plugins libpulse-mainloop-glib0
-    sudo apt-get install -y python3-pyqt5 python3-pyqt5.sip python3-pyqt5.qtmultimedia
+setup_project(){
+    echo -e "=== setup_${APP_TYPE}() ${TAG_STRT} ==="
+    pushd ${PROJECT_ROOT}
 
-    #### 4. Install pip packages
-    pip install -r requirements.${APP_TYPE}.txt
-    pip install ./assets/CLIP
-  else
-    echo "Error: APP_TYPE must be either 'opencv' or 'pyqt'." >&2
-    exit 1
-  fi
+    #### Install packages
+    eval ${PROJECT_ROOT}/install.sh --app_type=$APP_TYPE
+
+    popd
+    echo -e "=== setup_${APP_TYPE}() ${TAG_DONE} ==="
+}
+
+function show_information_message(){
+    echo -e "${TAG_INFO} To activate the virtual environment, run:"
+    echo -e "${COLOR_BRIGHT_YELLOW_ON_BLACK}  source ${VENV_PATH}/bin/activate ${COLOR_RESET}"
+}
+
+main(){
+    if [ "${APP_TYPE}" == "" ]; then
+        show_help "error" "'--app_type' option must be set."
+    fi
+
+    # Check if DXRT_SRC_PATH exists
+    if [ ! -d $DXRT_SRC_PATH ]; then
+        show_help "error" "DXRT_SRC_PATH ($DXRT_SRC_PATH) does not exist."
+    fi
+
+    make_venv
+    make_symlink
+    if [ ${SKIP_INSTALL_PIP_PACKAGE} -eq 0 ]; then
+        activate_venv
+        setup_dx_engine
+        setup_project
+    fi
+    show_information_message
 }
 
 # Parse arguments
@@ -124,20 +238,24 @@ for i in "$@"; do
       VENV_REAL_DIR=$(readlink -f "$VENV_PATH")
       CURRENT_REAL_DIR=$(readlink -f "./")
       if [ "$VENV_REAL_DIR" == "$CURRENT_REAL_DIR" ]; then
-          echo "'--venv_path' is the same as the current directory. Please specify a different directory."
+          echo -e "${TAG_ERROR} '--venv_path' is the same as the current directory. Please specify a different directory."
           exit 1
       fi
       ;;
     --venv_symlink_target_path=*)
       VENV_SYMLINK_TARGET_PATH="${1#*=}"
-      VENV_SYMLINK_TARGET_REAL_PATH=$(readlink -f "$VENV_SYMLINK_TARGET_PATH")
+      ;;
+   --system-site-packages)
+      VENV_MAKE_ARGS="--system-site-packages"
+      ;;
+    --force)
+      USE_FORCE=1
       ;;
     --help)
       show_help
       ;;
     *)
-      echo "Unknown option: $1"
-      exit 1
+      show_help "error" "Unknown option: $1"
       ;;
   esac
 shift
@@ -149,30 +267,16 @@ if [ ! -d "$DXRT_SRC_PATH" ]; then
   show_help "error"
 fi
 
-### Pre-Requisite
 if [[ "$APP_TYPE" == "opencv" ]]; then
   echo "Running in OpenCV mode"
-  sudo add-apt-repository -y ppa:deadsnakes/ppa
-  sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv python3-tk
 elif [[ "$APP_TYPE" == "pyqt" ]]; then
-  sudo add-apt-repository -y ppa:deadsnakes/ppa
-  sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv libxcb-xinerama0
+  echo "Running in PyQT mode"
 else
   echo "Error: APP_TYPE must be either 'opencv' or 'pyqt'." >&2
   exit 1
 fi
 
-# If the VENV_SYMLINK_TARGET_PATH option is used and VENV_SYMLINK_TARGET_REAL_PATH exists
-if [ -n "$VENV_SYMLINK_TARGET_PATH" ] && [ -d "$VENV_SYMLINK_TARGET_REAL_PATH" ]; then
-    # Skip file download and create a symlink
-    echo "VENV_SYMLINK_TARGET_PATH($VENV_SYMLINK_TARGET_PATH) is already exist. Skip to setup venv, then create a symlink"
-    make_symlink
-else
-    make_venv
-    make_symlink
-    setup_dx_engine
-    setup_demo_app
-fi
+main
 
 exit 0
 
