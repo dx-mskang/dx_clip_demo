@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QLineEdit, QSpinBox, QCheckBox, QPushButton, QWidget, \

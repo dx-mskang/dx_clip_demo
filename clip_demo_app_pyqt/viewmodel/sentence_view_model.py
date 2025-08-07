@@ -1,3 +1,4 @@
+from __future__ import annotations
 from PyQt5.QtCore import pyqtSignal
 
 from clip_demo_app_pyqt.model.clip_model import SentenceModel

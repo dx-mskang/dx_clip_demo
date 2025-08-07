@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import os
 import sys
@@ -17,8 +18,6 @@ from tqdm import tqdm
 
 import threading
 import time
-
-from typing import List, Tuple
 
 def is_vaapi_available():
     try:
@@ -152,7 +151,7 @@ def _loose_similarity(text_vectors, video_vectors, video_frame_mask):
     retrieve_logits = torch.matmul(sequence_output, visual_output.t())
     return retrieve_logits
 
-def get_text_vectors(text_list:List[str], embedder, encoder):
+def get_text_vectors(text_list: list[str], embedder, encoder):
     ret = []
     for i in tqdm(range(len(text_list))):
         text = text_list[i]
@@ -216,7 +215,7 @@ class DXVideoEncoder():
         return x
 
 class SingleVideoThread(threading.Thread):
-    def __init__(self, base_path: str, video_path_list: List[str], position: Tuple, imshow_size: Tuple):
+    def __init__(self, base_path: str, video_path_list: list[str], position: tuple, imshow_size: tuple):
         super().__init__()
         ## SETTING
         self.input_size = 224
@@ -402,7 +401,7 @@ class SingleVideoThread(threading.Thread):
 
 
 class VideoViewer(threading.Thread):
-    def __init__(self, gt_text_list: List[str], video_threads: List[SingleVideoThread]):
+    def __init__(self, gt_text_list: list[str], video_threads: list[SingleVideoThread]):
         super().__init__()
         self.gt_text_list = gt_text_list
         self.video_threads = video_threads
@@ -485,7 +484,7 @@ class VideoViewer(threading.Thread):
 
 
 class DXEngineThread(threading.Thread):
-    def __init__(self, text_list: List[str], video_threads: List[SingleVideoThread], text_vectors: List, video_encoder: DXVideoEncoder, text_alarm_level_list: List, video_viewer: VideoViewer):
+    def __init__(self, text_list: list[str], video_threads: list[SingleVideoThread], text_vectors: list, video_encoder: DXVideoEncoder, text_alarm_level_list: list, video_viewer: VideoViewer):
         super().__init__()
         self.text_list = text_list
         self.text_alarm_level_list = text_alarm_level_list

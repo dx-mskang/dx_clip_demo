@@ -1,3 +1,4 @@
+from __future__ import annotations
 import copy
 import threading
 
@@ -306,7 +307,7 @@ class TextVectorUtil:
     print("[TIME] Model Load : {} ns".format(model_load_time_e - model_load_time_s))
 
     @classmethod
-    def get_text_vector_list(cls, text_list: list[str]):
+    def get_text_vector_list(cls, text_list: list[str]) -> list:
         ret = []
         for i in tqdm(range(len(text_list))):
             text = text_list[i]
@@ -315,7 +316,7 @@ class TextVectorUtil:
         return ret
 
     @classmethod
-    def get_text_vector(cls, text: str):
+    def get_text_vector(cls, text: str) -> torch.Tensor:
         text = text if len(text.split(" ")) < cls.MAX_WORDS - 1 else str.join(text.split(" ")[:cls.MAX_WORDS - 2])
         text = cls.SPECIAL_TOKEN["CLS_TOKEN"] + " " + text + " " + cls.SPECIAL_TOKEN["SEP_TOKEN"]
         token_ids = ClipTokenizer().encode(text)
@@ -333,7 +334,7 @@ class TextVectorUtil:
 
 
 class SentenceModel(Model):
-    def __init__(self, sentence_list: list[Sentence]):
+    def __init__(self, sentence_list: list[Sentence]) -> None:
         Model.__init__(self)
         self.__sentence_lock = threading.Lock()
 
@@ -342,14 +343,13 @@ class SentenceModel(Model):
             [sentence.get_text() for sentence in self.__sentence_list])
 
     def insert_sentence(self, text_input, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color,
-                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index=0):
+                        alarm, alarm_title, alarm_position, alarm_color, media_alarm, media_alarm_title,
+                        media_alarm_media_path, media_alarm_position, index=0) -> None:
         self.insert_sentence_obj(
             Sentence(text_input, score_min, score_max, score_threshold, alarm, alarm_title, alarm_position, alarm_color,
                      media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position), index)
 
-    def insert_sentence_obj(self, sentence: Sentence,
-                            index=0):
+    def insert_sentence_obj(self, sentence: Sentence, index=0) -> None:
         with self.__sentence_lock:
             self.__sentence_list.insert(index, sentence)
             self.__sentence_vector_list.insert(index, TextVectorUtil.get_text_vector(sentence.get_text()))
@@ -364,33 +364,33 @@ class SentenceModel(Model):
             InputData().save_data()
             return sentence
 
-    def toggle_sentence(self, index):
+    def toggle_sentence(self, index) -> None:
         sentence = self.pop_sentence(index)
         sentence.set_disabled(not sentence.get_disabled())
         InputData().save_data()
         self.insert_sentence_obj(sentence, index)
 
-    def toggle_alarm(self, index):
+    def toggle_alarm(self, index) -> None:
         sentence = self.pop_sentence(index)
         sentence.set_alarm(not sentence.get_alarm())
         InputData().save_data()
         self.insert_sentence_obj(sentence, index)
 
-    def toggle_media_alarm(self, index):
+    def toggle_media_alarm(self, index) -> None:
         sentence = self.pop_sentence(index)
         sentence.set_media_alarm(not sentence.get_media_alarm())
         InputData().save_data()
         self.insert_sentence_obj(sentence, index)
 
     def update_sentence(self, text_input, score_min, score_max, score_threshold,
-                        alarm, alarm_title, alarm_position, alarm_color,
-                        media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index):
+                        alarm, alarm_title, alarm_position, alarm_color, media_alarm, media_alarm_title,
+                        media_alarm_media_path, media_alarm_position, index) -> None:
         self.pop_sentence(index)
         self.insert_sentence(text_input, score_min, score_max, score_threshold,
                              alarm, alarm_title, alarm_position, alarm_color,
                              media_alarm, media_alarm_title, media_alarm_media_path, media_alarm_position, index)
 
-    def reset_sentence(self):
+    def reset_sentence(self) -> None:
         with self.__sentence_lock:
             input_data = InputData()
             input_data.load_data(force=True)
@@ -398,16 +398,16 @@ class SentenceModel(Model):
             self.__sentence_vector_list: list = TextVectorUtil.get_text_vector_list(
                 [sentence.get_text() for sentence in self.__sentence_list])
 
-    def clear_sentence(self):
+    def clear_sentence(self) -> None:
         with self.__sentence_lock:
             self.__sentence_list.clear()
             self.__sentence_vector_list.clear()
             InputData().save_data()
 
-    def get_sentence_list(self) -> list:
+    def get_sentence_list(self) -> list[Sentence]:
         with self.__sentence_lock:
             return copy.deepcopy(self.__sentence_list)
 
-    def get_sentence_vector_list(self) -> list:
+    def get_sentence_vector_list(self) -> list[torch.Tensor]:
         with self.__sentence_lock:
             return copy.deepcopy(self.__sentence_vector_list)

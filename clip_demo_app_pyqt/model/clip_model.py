@@ -1,3 +1,4 @@
+from __future__ import annotations
 from clip_demo_app_pyqt.model.sentence_model import SentenceModel, Sentence
 from clip_demo_app_pyqt.model.video_model import VideoModel
 

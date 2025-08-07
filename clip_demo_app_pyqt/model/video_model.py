@@ -1,3 +1,4 @@
+from __future__ import annotations
 from clip_demo_app_pyqt.model.model import Model
 
 
