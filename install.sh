@@ -26,6 +26,18 @@ check_virtualenv() {
 install_deps(){
   echo -e "=== install_deps() ${TAG_START:-[START]} ==="
 
+  ### Upgrade pip wheel setuptools
+  echo "Upgrade pip wheel setuptools..."
+  UBUNTU_VERSION=$(lsb_release -rs) && \
+  echo "*** UBUNTU_VERSION(${UBUNTU_VERSION}) ***" && \
+  if [ "$UBUNTU_VERSION" = "24.04" ]; then \
+    pip install --upgrade setuptools; \
+  elif [ "$UBUNTU_VERSION" = "22.04" ] || [ "$UBUNTU_VERSION" = "20.04" ] || [ "$UBUNTU_VERSION" = "18.04" ]; then \
+    pip install --upgrade pip wheel setuptools; \
+  else \
+    echo "Unspported Ubuntu version: $UBUNTU_VERSION" && exit 1; \
+  fi
+
   ### Pre-Requisite
   if [[ "$APP_TYPE" == "opencv" ]]; then
     echo "Running in OpenCV mode"
@@ -47,6 +59,7 @@ install_deps(){
     pip install ./assets/CLIP
   elif [[ "$APP_TYPE" == "pyqt" ]]; then
     #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
+    sudo apt-get install -y build-essential qtbase5-dev    # for source build on Ubuntu 20.04, Ubuntu 18.04
     sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-sync1 libxkbcommon-x11-0 libxcb-xkb1
     sudo apt-get install -y libqt5multimedia5-plugins libpulse-mainloop-glib0
     sudo apt-get install -y python3-pyqt5 python3-pyqt5.sip python3-pyqt5.qtmultimedia
