@@ -10,7 +10,7 @@ source ${SCRIPT_DIR}/scripts/color_env.sh
 check_virtualenv() {
     if [ -n "$VIRTUAL_ENV" ]; then
         venv_name=$(basename "$VIRTUAL_ENV")
-        if [ "$venv_name" = "$APP_TYPE" ]; then
+        if [ "$venv_name" = "$APP_TYPE" ] || [ "$venv_name" = "$APP_TYPE-local" ]; then
             echo "✅ Virtual environment '$venv_name' is currently active."
             return 0
         else
@@ -24,54 +24,85 @@ check_virtualenv() {
 }
 
 install_deps(){
-  echo -e "=== install_deps() ${TAG_START:-[START]} ==="
+    echo -e "=== install_deps() ${TAG_START:-[START]} ==="
 
-  ### Upgrade pip wheel setuptools
-  echo "Upgrade pip wheel setuptools..."
-  UBUNTU_VERSION=$(lsb_release -rs) && \
-  echo "*** UBUNTU_VERSION(${UBUNTU_VERSION}) ***" && \
-  if [ "$UBUNTU_VERSION" = "24.04" ]; then \
-    pip install --upgrade setuptools; \
-  elif [ "$UBUNTU_VERSION" = "22.04" ] || [ "$UBUNTU_VERSION" = "20.04" ] || [ "$UBUNTU_VERSION" = "18.04" ]; then \
-    pip install --upgrade pip wheel setuptools; \
-  else \
-    echo "Unspported Ubuntu version: $UBUNTU_VERSION" && exit 1; \
-  fi
+    # --- Upgrade pip, wheel, and setuptools ---
+    echo "Upgrading pip, wheel, and setuptools..."
 
-  ### Pre-Requisite
-  if [[ "$APP_TYPE" == "opencv" ]]; then
-    echo "Running in OpenCV mode"
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv python3-tk
-  elif [[ "$APP_TYPE" == "pyqt" ]]; then
-    echo "Running in PyQT mode"
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv libxcb-xinerama0
-  else
-    echo -e "${TAG_ERROR:-[ERROR]} APP_TYPE must be either 'opencv' or 'pyqt'." >&2
-    exit 1
-  fi
+    # Check for /etc/os-release to identify the OS
+    if [ -f /etc/os-release ]; then
+        # shellcheck source=/etc/os-release
+        . /etc/os-release
+    else
+        echo "Cannot determine the operating system: /etc/os-release not found." >&2
+        exit 1
+    fi
 
-  ### Install dependencies for Demo APP
-  if [[ "$APP_TYPE" == "opencv" ]]; then
-    #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
-    pip install -r requirements.${APP_TYPE}.txt
-    pip install ./assets/CLIP
-  elif [[ "$APP_TYPE" == "pyqt" ]]; then
-    #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
-    sudo apt-get install -y build-essential qtbase5-dev    # for source build on Ubuntu 20.04, Ubuntu 18.04
-    sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-sync1 libxkbcommon-x11-0 libxcb-xkb1
-    sudo apt-get install -y libqt5multimedia5-plugins libpulse-mainloop-glib0
-    sudo apt-get install -y python3-pyqt5 python3-pyqt5.sip python3-pyqt5.qtmultimedia
+    if [ "$ID" = "ubuntu" ]; then
+        UBUNTU_VERSION=$(lsb_release -rs)
+        echo "*** Ubuntu Version (${UBUNTU_VERSION}) detected. ***"
 
-    #### 4. Install pip packages
-    pip install -r requirements.${APP_TYPE}.txt
-    pip install ./assets/CLIP
-  else
-    echo -e "${TAG_ERROR:-[ERROR]} APP_TYPE must be either 'opencv' or 'pyqt'." >&2
-    exit 1
-  fi
-  echo -e "=== install_deps() ${TAG_DONE:-[DONE]} ==="
+        if [ "$UBUNTU_VERSION" = "24.04" ]; then
+            pip install --upgrade setuptools
+        elif [[ "$UBUNTU_VERSION" == "22.04" || "$UBUNTU_VERSION" == "20.04" || "$UBUNTU_VERSION" == "18.04" ]]; then
+            pip install --upgrade pip wheel setuptools
+        else
+            echo "Unsupported Ubuntu version: $UBUNTU_VERSION" >&2
+            exit 1
+        fi
+    elif [ "$ID" = "debian" ]; then
+        DEBIAN_VERSION_ID=${VERSION_ID}
+        echo "*** Debian Version (${DEBIAN_VERSION_ID}) detected. ***"
+
+        if [ "$DEBIAN_VERSION_ID" = "12" ]; then
+            python3 -m pip install --upgrade pip wheel setuptools
+        else
+            echo "Unsupported Debian version: $DEBIAN_VERSION_ID" >&2
+            exit 1
+        fi
+    else
+        # Handle other non-supported operating systems
+        echo "This script currently supports Ubuntu and Debian 12 only."
+        echo "Detected OS: $PRETTY_NAME" >&2
+        exit 1
+    fi
+
+    echo "Upgrade complete."
+
+    ### Pre-Requisite
+    if [[ "$APP_TYPE" == "opencv" ]]; then
+        echo "Running in OpenCV mode"
+        sudo add-apt-repository -y ppa:deadsnakes/ppa
+        sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv python3-tk
+    elif [[ "$APP_TYPE" == "pyqt" ]]; then
+        echo "Running in PyQT mode"
+        sudo add-apt-repository -y ppa:deadsnakes/ppa
+        sudo apt-get update && sudo apt-get install -y python3 python3-dev python3-venv libxcb-xinerama0
+    else
+        echo -e "${TAG_ERROR:-[ERROR]} APP_TYPE must be either 'opencv' or 'pyqt'." >&2
+        exit 1
+    fi
+
+    ### Install dependencies for Demo APP
+    if [[ "$APP_TYPE" == "opencv" ]]; then
+        #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
+        pip install -r requirements.${APP_TYPE}.txt
+        pip install ./assets/CLIP
+    elif [[ "$APP_TYPE" == "pyqt" ]]; then
+        #### 3. Install packages (gstreamer, qt5 multimedia plugins for play mp3, mp4, gif files)
+        sudo apt-get install -y build-essential qtbase5-dev    # for source build on Ubuntu 20.04, Ubuntu 18.04
+        sudo apt-get install -y libxcb-xinerama0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xfixes0 libxcb-shape0 libxcb-sync1 libxkbcommon-x11-0 libxcb-xkb1
+        sudo apt-get install -y libqt5multimedia5-plugins libpulse-mainloop-glib0
+        sudo apt-get install -y python3-pyqt5 python3-pyqt5.sip python3-pyqt5.qtmultimedia
+
+        #### 4. Install pip packages
+        pip install -r requirements.${APP_TYPE}.txt
+        pip install ./assets/CLIP
+    else
+        echo -e "${TAG_ERROR:-[ERROR]} APP_TYPE must be either 'opencv' or 'pyqt'." >&2
+        exit 1
+    fi
+    echo -e "=== install_deps() ${TAG_DONE:-[DONE]} ==="
 }
 
 activate_venv() {
@@ -104,33 +135,33 @@ main() {
 
 # Function to display help message
 show_help() {
-  echo "Usage: $(basename "$0") [OPTIONS]"
-  echo "Example: $0 --app_type=pyqt --venv_path=./venv-${APP_TYPE}"
-  echo "Options:"
-  echo "  --app_type=<str>                     Set Application type (pyqt | opencv)"
-  echo "  [--help]                             Show this help message"
+    echo "Usage: $(basename "$0") [OPTIONS]"
+    echo "Example: $0 --app_type=pyqt --venv_path=./venv-${APP_TYPE}"
+    echo "Options:"
+    echo "  --app_type=<str>                     Set Application type (pyqt | opencv)"
+    echo "  [--help]                             Show this help message"
 
-  if [ "$1" == "error" ]; then
-    echo "Error: Invalid or missing arguments."
-    exit 1
-  fi
-  exit 0
+    if [ "$1" == "error" ]; then
+        echo "Error: Invalid or missing arguments."
+        exit 1
+    fi
+    exit 0
 }
 
 # Parse arguments
 for i in "$@"; do
-  case $i in
-    --app_type=*)
-      APP_TYPE="${i#*=}"
-      ;;
-    --help)
-      show_help
-      ;;
-    *)
-      echo "Unknown option: $1"
-      exit 1
-      ;;
-  esac
+    case $i in
+        --app_type=*)
+            APP_TYPE="${i#*=}"
+            ;;
+        --help)
+            show_help
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+          ;;
+    esac
 shift
 done
 
