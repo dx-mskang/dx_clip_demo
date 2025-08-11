@@ -257,8 +257,13 @@ class SingleVideoThread(threading.Thread):
             self.cap = cv2.VideoCapture(self.__generate_gst_pipeline(self.video_path_current), cv2.CAP_GSTREAMER)
         else:
             self.cap = cv2.VideoCapture(self.video_path_current)
-        self.current_original_frame = np.zeros((self.imshow_size[1], self.imshow_size[0], 3), dtype=np.uint8)  # 검정색 판 
-        self.current_original_frame = self.cap.read()
+
+        ret, frame = self.cap.read()
+        if ret:
+            self.current_original_frame = frame
+        else:
+            self.current_original_frame = np.zeros((self.imshow_size[1], self.imshow_size[0], 3), dtype=np.uint8)
+
         self.position = position
         self.transform_ = self.transform(224)
 
