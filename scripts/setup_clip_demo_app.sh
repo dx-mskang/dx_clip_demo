@@ -71,13 +71,10 @@ make_venv(){
             rm -rf "$VENV_ORIGIN_DIR"
         fi
 
-        for ver in 13 12 11 10 9 8 7 6; do
-            py_cmd="python3.$ver"
-            if command -v "$py_cmd" &>/dev/null; then
-                PYTHON_EXE="$py_cmd"
-                break
-            fi
-        done
+        py_cmd="python3"
+        if command -v "$py_cmd" &>/dev/null; then
+            PYTHON_EXE="$py_cmd"
+        fi
 
         if [ -z "$PYTHON_EXE" ]; then
             echo "ERROR: Could not determine a suitable Python executable." >&2
@@ -85,6 +82,12 @@ make_venv(){
         fi
 
         # create venv
+        # Using apt to install python3-pyqt5 to ensure compatibility on aarch64.
+        if [ "$ARCH_TYPE" = "aarch64" ]; then
+            echo -e "${TAG_WARN} System arch_type is ${ARCH_TYPE}. Using apt to install python-pyqr5 to ensure compatibility on aarch64. So, Make venv with --system-site-packages option"
+            VENV_MAKE_ARGS="--system-site-packages"
+        fi
+
         "$PYTHON_EXE" -m venv ${VENV_ORIGIN_DIR} ${VENV_MAKE_ARGS}
 
         # create venv failed check

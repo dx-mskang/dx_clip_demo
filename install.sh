@@ -43,9 +43,9 @@ install_deps(){
         echo "*** Ubuntu Version (${UBUNTU_VERSION}) detected. ***"
 
         if [ "$UBUNTU_VERSION" = "24.04" ]; then
-            pip install --upgrade setuptools
+            pip install --upgrade "setuptools<=70.0.0"
         elif [[ "$UBUNTU_VERSION" == "22.04" || "$UBUNTU_VERSION" == "20.04" || "$UBUNTU_VERSION" == "18.04" ]]; then
-            pip install --upgrade pip wheel setuptools
+            pip install --upgrade pip wheel "setuptools<=70.0.0"
         else
             echo "Unsupported Ubuntu version: $UBUNTU_VERSION" >&2
             exit 1
@@ -55,7 +55,7 @@ install_deps(){
         echo "*** Debian Version (${DEBIAN_VERSION_ID}) detected. ***"
 
         if [ "$DEBIAN_VERSION_ID" = "12" ]; then
-            python3 -m pip install --upgrade pip wheel setuptools
+            python3 -m pip install --upgrade pip wheel "setuptools<=70.0.0"
         else
             echo "Unsupported Debian version: $DEBIAN_VERSION_ID" >&2
             exit 1
