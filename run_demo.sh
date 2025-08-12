@@ -3,11 +3,13 @@
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 pushd $SCRIPT_DIR
 
+APP_TYPE="pyqt"
+
 # Function to display help message
 show_help() {
   echo "Usage: $(basename "$0") [OPTIONS]"
   echo "Options:"
-  echo "  --app_type=<str>             Set Application type (pyqt | opencv)"
+  echo "  [--app_type=<str>]           Set Application type (pyqt | opencv, default: pyqt)"
   echo "  --help                       Show this help message"
 
   if [ "$1" == "error" ]; then

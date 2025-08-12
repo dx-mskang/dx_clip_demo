@@ -53,7 +53,7 @@ clean_target_path() {
   CMD="rm -rf ${target_venv_dir} ${target_path}"
 
   print_colored_v2 "YELLOW" "${CMD}"
-  ${CMD} || { print_colored_v2 "WARNING" "failed to clean files for '$CMD'."; }
+  ${CMD} || { print_colored_v2 "ERROR" "Could not clean files for '$CMD'. Please try again with 'sudo'."; exit 1;}
 
   print_colored_v2 "DEBUG" "Clean $1 done."
 }
