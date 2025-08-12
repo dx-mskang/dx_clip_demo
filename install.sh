@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APP_TYPE=""
+APP_TYPE="pyqt"
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 PROJECT_ROOT="${SCRIPT_DIR}"
 VENV_PATH="${PROJECT_ROOT}/venv-${APP_TYPE}"
@@ -128,7 +128,15 @@ main() {
             activate_venv
             install_deps
         else
-            echo -e "${TAG_ERROR:-[ERROR]}${COLOR_BRIGHT_RED_ON_BLACK} Virtual environment '${VENV_PATH}' is not exist.\nPlease run 'setup.sh' to set up and activate the environment first.${COLOR_RESET}"
+            echo -e "${TAG_HINT}${COLOR_BRIGHT_BLUE_ON_BLACK} Virtual environment '${VENV_PATH}' is not exist.${COLOR_RESET}"
+	    echo -e -n "${COLOR_BRIGHT_GREEN_ON_BLACK}  Would you like to setup now? (y/n): ${COLOR_RESET}"
+            read -r answer
+            if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+                echo "Start Setup..."
+                ${PROJECT_ROOT}/setup.sh && { echo -e "${TAG_DONE}} Setup Done."; main; } || { echo -e "${TAG_ERROR} Fail to setup..."; exit 1; }
+            else
+                echo -e "${TAG_HINT}${COLOR_BRIGHT_BLUE_ON_BLACK} Please run 'setup.sh' to set up and activate the environment first.${COLOR_RESET}"
+            fi
         fi
     fi
 }
@@ -136,7 +144,7 @@ main() {
 # Function to display help message
 show_help() {
     echo "Usage: $(basename "$0") [OPTIONS]"
-    echo "Example: $0 --app_type=pyqt --venv_path=./venv-${APP_TYPE}"
+    echo "Example: $0 --app_type=pyqt"
     echo "Options:"
     echo "  --app_type=<str>                     Set Application type (pyqt | opencv)"
     echo "  [--help]                             Show this help message"
@@ -164,6 +172,11 @@ for i in "$@"; do
     esac
 shift
 done
+
+# Check if APP_TYPE is valid
+if [ "$APP_TYPE" != "pyqt" ] && [ "$APP_TYPE" != "opencv" ]; then
+  show_help "error" "'--app_type' option is invalid. It must be set to either 'pyqt' or 'opencv'."
+fi
 
 main
 

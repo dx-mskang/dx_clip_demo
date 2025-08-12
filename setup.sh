@@ -1,29 +1,32 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
+PROJECT_ROOT="${SCRIPT_DIR}"
 
 # Global variables for script configuration
-APP_TYPE=""
+APP_TYPE="pyqt"
 
 # Default values
-DXRT_SRC_PATH="/deepx/dx-runtime/dx_rt/"
+DXRT_SRC_PATH=$(realpath "${PROJECT_ROOT}/../dx-runtime/dx_rt/")
 DOCKER_VOLUME_PATH=${DOCKER_VOLUME_PATH}
 
 # color env settings
 source ${SCRIPT_DIR}/scripts/color_env.sh
 source ${SCRIPT_DIR}/scripts/common_util.sh
 
-pushd $SCRIPT_DIR
+pushd $PROJECT_ROOT
 
 # Function to display help message
 show_help() {
   print_colored_v2 "YELLOW" "Usage: $(basename "$0") [OPTIONS]"
-  print_colored_v2 "YELLOW" "Example 1) $0 --app_type=pyqt"
-  print_colored_v2 "YELLOW" "Example 2) $0 --app_type=pyqt --dxrt_src_path=/deepx/dx-runtime/dx_rt"
-  print_colored_v2 "YELLOW" "Example 3) $0 --app_type=opencv --dxrt_src_path=/deepx/dx-runtime/dx_rt"
+  print_colored_v2 "YELLOW" "Example 1) $0"
+  print_colored_v2 "YELLOW" "Example 2) $0 --app_type=opencv"
+  print_colored_v2 "YELLOW" "Example 3) $0 --app_type=pyqt --dxrt_src_path=${DXRT_SRC_PATH}"
+  print_colored_v2 "YELLOW" "Example 4) $0 --app_type=opencv --dxrt_src_path=${DXRT_SRC_PATH}"
+  print_colored_v2 "YELLOW" "Example 5) $0 --app_type=pyqt --docker_volume_path=/deepx/workspace"
   print_colored_v2 "GREEN" "Options:"
-  print_colored_v2 "GREEN" "  --app_type=<str>                Set Application type (pyqt | opencv)"
-  print_colored_v2 "GREEN" "  [--dxrt_src_path=<path>]        Set DXRT source path (default: /deepx/dx-runtime/dx_rt/)"
+  print_colored_v2 "GREEN" "  [--app_type=<str>]              Set Application type (pyqt | opencv, default: pyqt)"
+  print_colored_v2 "GREEN" "  [--dxrt_src_path=<path>]        Set DXRT source path (default: ${DXRT_SRC_PATH})"
   print_colored_v2 "GREEN" "  [--docker_volume_path=<path>]   Set Docker volume path (required in container mode)"
   print_colored_v2 "GREEN" "  [--help]                        Show this help message"
 
@@ -58,9 +61,10 @@ main() {
     VENV_SYMLINK_TARGET_PATH_ARGS="--venv_symlink_target_path=${VENV_SYMLINK_TARGET_PATH}"
   else
     print_colored_v2 "INFO" "(host mode detected)"
-    SETUP_CLIP_ASSET_ARGS="--output=${ASSET_PATH} --symlink_target_path=../workspace/res/clip"
-    SETUP_CLIP_VIDEO_ARGS="--output=${VIDEO_PATH} --symlink_target_path=../workspace/res/videos"
-    VENV_SYMLINK_TARGET_PATH="../workspace/venv/clip/${APP_TYPE}-local"
+    WORKSPACE_PATH="../workspace-local"
+    SETUP_CLIP_ASSET_ARGS="--output=${ASSET_PATH} --symlink_target_path=${WORKSAPCE_PATH}/res/clip"
+    SETUP_CLIP_VIDEO_ARGS="--output=${VIDEO_PATH} --symlink_target_path=${WORKSPACE_PATH}/res/videos"
+    VENV_SYMLINK_TARGET_PATH="${WORKSPACE_PATH}/venv/clip/${APP_TYPE}-local"
     VENV_SYMLINK_TARGET_PATH_ARGS="--venv_symlink_target_path=${VENV_SYMLINK_TARGET_PATH}"
   fi
 
@@ -91,7 +95,7 @@ main() {
   # Check and set up virtual environment
   if [ ! -f "$VENV_REAL_PATH/bin/activate" ]; then
     print_colored_v2 "INFO" "Virtual environment not found. Running setup script... ($VENV_REAL_PATH)"
-    RUN_SETUP_CMD="./scripts/setup_clip_demo_app.sh --app_type=${APP_TYPE} --arch_type=${ARCH_TYPE} --venv_path=${VENV_PATH} --dxrt_src_path=${DXRT_SRC_PATH} ${VENV_SYMLINK_TARGET_PATH_ARGS}"
+    RUN_SETUP_CMD="./scripts/setup_clip_demo_app.sh --app_type=${APP_TYPE} --venv_path=${VENV_PATH} --dxrt_src_path=${DXRT_SRC_PATH} ${VENV_SYMLINK_TARGET_PATH_ARGS}"
     print_colored_v2 "YELLOW" "CMD : $RUN_SETUP_CMD"
     
     $RUN_SETUP_CMD || { print_colored_v2 "YELLOW" "Setup script failed."; rm -rf $VENV_PATH; exit 1; }
@@ -130,18 +134,7 @@ fi
 
 # Check if DXRT_SRC_PATH exists
 if [ ! -d "$DXRT_SRC_PATH" ]; then
-  show_help "error" "'--dxrt_src_path' option does not exist."
-fi
-
-# Detect system architecture (amd64 or aarch64)
-ARCH_TYPE=$(uname -m)
-if [[ "$ARCH_TYPE" == "x86_64" ]]; then
-  ARCH_TYPE="amd64"
-elif [[ "$ARCH_TYPE" == "aarch64" ]]; then
-  ARCH_TYPE="aarch64"
-else
-  print_colored_v2 "WARNING" "Unsupported architecture: $ARCH_TYPE"
-  exit 1
+  show_help "error" "'--dxrt_src_path($DXRT_SRC_PATH)' option does not exist. please set path."
 fi
 
 ASSET_PATH=./assets

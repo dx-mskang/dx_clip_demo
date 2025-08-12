@@ -1,7 +1,6 @@
 #!/bin/bash
 
-APP_TYPE=""
-ARCH_TYPE=""
+APP_TYPE="pyqt"
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 PROJECT_ROOT=$(realpath -s "${SCRIPT_DIR}/..")
 RUNTIME_PATH=$(realpath -s "${PROJECT_ROOT}/../dx-runtime")
@@ -19,12 +18,11 @@ source ${SCRIPT_DIR}/color_env.sh
 # Function to display help message
 show_help(){
   echo "Usage: $(basename "$0") [OPTIONS]"
-  echo "Example: $0 --app_type=pyqt --dxrt_src_path=/deepx/dx_rt --venv_path=./venv-${APP_TYPE} --symlink_target_path=../workspace/venv/clip/pyqt"
+  echo "Example: $0 --app_type=pyqt --dxrt_src_path=${DXRT_SRC_PATH} --venv_path=./venv-${APP_TYPE} --symlink_target_path=../workspace/venv/clip/pyqt"
   echo "Options:"
-  echo "  --app_type=<str>                     Set Application type (pyqt | opencv)"
-  echo "  --arch_type=<str>                    Set Archtecture type (aarch64 | amd64)"
-  echo "  --dxrt_src_path=<dir>                Set DXRT source path (default: /deepx/dx_rt/)"
-  echo "  --venv_path=<dir>                     Set virtual environment path (default: PROJECT_ROOT/venv-${APP_TYPE})"
+  echo "  [--app_type=<str>]                    Set Application type (pyqt | opencv, default: pyqt)"
+  echo "  [--dxrt_src_path=<dir>]               Set DXRT source path (default: ${DXRT_SRC_PATH})"
+  echo "  [--venv_path=<dir>]                   Set virtual environment path (default: PROJECT_ROOT/venv-${APP_TYPE})"
   echo "  [--venv_symlink_target_path=<dir>]    Set symlink target path for venv (ex: PROJECT_ROOT/../workspace/venv/${APP_TYPE})"
   echo "  [--system-site-packages]              Set venv '--system-site-packages' option"
   echo "  [--force]                             Force overwrite if the file already exists"
@@ -228,9 +226,6 @@ for i in "$@"; do
     --app_type=*)
       APP_TYPE="${i#*=}"
       ;;
-    --arch_type=*)
-      ARCH_TYPE="${i#*=}"
-      ;;  
     --dxrt_src_path=*)
       DXRT_SRC_PATH="${i#*=}"
       ;;
@@ -264,18 +259,24 @@ for i in "$@"; do
 shift
 done
 
-# Check if DXRT_SRC_PATH exists
-if [ ! -d "$DXRT_SRC_PATH" ]; then
-  echo "Error: DXRT_SRC_PATH ($DXRT_SRC_PATH) does not exist."
-  show_help "error"
+# Check if APP_TYPE is valid
+if [ "$APP_TYPE" != "pyqt" ] && [ "$APP_TYPE" != "opencv" ]; then
+  show_help "error" "'--app_type' option is invalid. It must be set to either 'pyqt' or 'opencv'."
 fi
 
-if [[ "$APP_TYPE" == "opencv" ]]; then
-  echo "Running in OpenCV mode"
-elif [[ "$APP_TYPE" == "pyqt" ]]; then
-  echo "Running in PyQT mode"
+# Check if DXRT_SRC_PATH exists
+if [ ! -d "$DXRT_SRC_PATH" ]; then
+  show_help "error" "'--dxrt_src_path($DXRT_SRC_PATH)' option does not exist. please set path."
+fi
+
+# Detect system architecture (amd64 or aarch64)
+ARCH_TYPE=$(uname -m)
+if [[ "$ARCH_TYPE" == "x86_64" ]]; then
+  ARCH_TYPE="amd64"
+elif [[ "$ARCH_TYPE" == "aarch64" ]]; then
+  ARCH_TYPE="aarch64"
 else
-  echo "Error: APP_TYPE must be either 'opencv' or 'pyqt'." >&2
+  print_colored_v2 "WARNING" "Unsupported architecture: $ARCH_TYPE"
   exit 1
 fi
 

@@ -3,9 +3,11 @@
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 
 # Global variables for script configuration
-APP_TYPE=""
+APP_TYPE="pyqt"
 CLEAN_VENV=0
 CLEAN_ASSETS=0
+CLEAN_DOWNLOAD=0
+CLEAN_WORKSPACE=0
 
 # color env settings
 source ${SCRIPT_DIR}/scripts/color_env.sh
@@ -20,10 +22,13 @@ show_help() {
   print_colored_v2 "YELLOW" "Example 2) $0 --app_type=pyqt --venv"
   print_colored_v2 "YELLOW" "Example 3) $0 --app_type=opencv --assets"
   print_colored_v2 "GREEN" "Options:"
-  print_colored_v2 "GREEN" "  --app_type=<str>               Set Application type (pyqt | opencv)"
   print_colored_v2 "GREEN" "  --all                          Clean assets and venv files"
+  print_colored_v2 "GREEN" "  [--app_type=<str>]             Set Application type (pyqt | opencv, default: pyqt)"
   print_colored_v2 "GREEN" "  [--assets]                     Clean assets files"
   print_colored_v2 "GREEN" "  [--venv]                       Clean venv files"
+  print_colored_v2 "GREEN" "  [--download]                   Clean downloaded files"
+  print_colored_v2 "GREEN" "  [--workspace]                  Clean all files include workspace"
+
   print_colored_v2 "GREEN" "  [--help]                       Show this help message"
 
   if [ "$1" == "error" ] && [[ ! -n "$2" ]]; then
@@ -39,27 +44,59 @@ show_help() {
   exit 0
 }
 
+clean_target_path() {
+  print_colored_v2 "DEBUG" "Clean $1..."
+
+  local target_path=$1
+  local target_real_dir=$(readlink -f "${target_path}")
+
+  CMD="rm -rf ${target_venv_dir} ${target_path}"
+
+  print_colored_v2 "YELLOW" "${CMD}"
+  ${CMD} || { print_colored_v2 "WARNING" "failed to clean files for '$CMD'."; }
+
+  print_colored_v2 "DEBUG" "Clean $1 done."
+}
+
 clean_assets() {
   print_colored_v2 "INFO" "Clean assets..."
-  
-  ASSET_PATH_REAL_DIR=$(readlink -f "${ASSET_PATH}")
-  CMD="rm -rf ${ASSET_PATH_REAL_DIR} ${ASSET_PATH}"
-  print_colored_v2 "YELLOW" "${CMD}"
-  ${CMD} || { print_colored_v2 "WARNING" "failed to clean assets."; }
+
+  clean_target_path "./assets"
 
   print_colored_v2 "INFO" "Clean assets done."
 }
 
 clean_venv() {
-  print_colored_v2 "INFO" "Clean venv..."
+  print_colored_v2 "INFO" "Clean venv ($1)..."
 
-  VENV_PATH_REAL_DIR=$(readlink -f "${VENV_PATH}")
-  CMD="rm -rf ${VENV_PATH_REAL_DIR} ${VENV_PATH}"
-  print_colored_v2 "YELLOW" "${CMD}"
-  ${CMD} || { print_colored_v2 "WARNING" "failed to clean venv."; }
+  local target_app_type=$1
+  local venv_path="./venv-${target_app_type}"
+  clean_target_path "${venv_path}"
 
   print_colored_v2 "INFO" "Clean venv done."
 }
+
+clean_download() {
+  print_colored_v2 "INFO" "Clean download..."
+
+  clean_target_path "./download"
+
+  print_colored_v2 "INFO" "Clean venv done."
+}
+
+clean_workspace() {
+  print_colored_v2 "INFO" "Clean workspace..."
+
+  clean_assets
+  clean_venv "pyqt"
+  clean_venv "opencv"
+  clean_download
+  clean_target_path "../workspace"
+  clean_target_path "../workspace-local"
+
+  print_colored_v2 "INFO" "Clean venv done."
+}
+
 
 main() {
   if [ $CLEAN_ASSETS -eq 1 ]; then
@@ -67,7 +104,15 @@ main() {
   fi
 
   if [ $CLEAN_VENV -eq 1 ]; then
-    clean_venv
+    clean_venv "$APP_TYPE"
+  fi
+
+  if [ $CLEAN_DOWNLOAD -eq 1 ]; then
+    clean_download
+  fi
+
+  if [ $CLEAN_WORKSPACE -eq 1 ]; then
+    clean_workspace
   fi
 }
 
@@ -87,6 +132,15 @@ for i in "$@"; do
     --assets)
       CLEAN_ASSETS=1
       ;;
+    --download)
+      CLEAN_DOWNLOAD=1
+      ;;
+    --workspace)
+      CLEAN_WORKSPACE=1
+      ;;
+    --verbose)
+      ENABLE_DEBUG_LOGS=1
+      ;;
     --help)
       show_help
       ;;
@@ -101,9 +155,6 @@ done
 if [ "$APP_TYPE" != "pyqt" ] && [ "$APP_TYPE" != "opencv" ]; then
   show_help "error" "'--app_type' option is invalid. It must be set to either 'pyqt' or 'opencv'."
 fi
-
-ASSET_PATH=./assets
-VENV_PATH="./venv-${APP_TYPE}"
 
 main
 
