@@ -62,7 +62,7 @@ main() {
   else
     print_colored_v2 "INFO" "(host mode detected)"
     WORKSPACE_PATH="../workspace-local"
-    SETUP_CLIP_ASSET_ARGS="--output=${ASSET_PATH} --symlink_target_path=${WORKSAPCE_PATH}/res/clip"
+    SETUP_CLIP_ASSET_ARGS="--output=${ASSET_PATH} --symlink_target_path=${WORKSPACE_PATH}/res/clip"
     SETUP_CLIP_VIDEO_ARGS="--output=${VIDEO_PATH} --symlink_target_path=${WORKSPACE_PATH}/res/videos"
     VENV_SYMLINK_TARGET_PATH="${WORKSPACE_PATH}/venv/clip/${APP_TYPE}-local"
     VENV_SYMLINK_TARGET_PATH_ARGS="--venv_symlink_target_path=${VENV_SYMLINK_TARGET_PATH}"
