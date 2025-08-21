@@ -50,6 +50,9 @@ class VideoProducer(QObject):
 
         self.__frame_count = 0
         self.__video_frame_skip_interval = video_frame_skip_interval
+        
+        self.__is_rtsp_source = False
+        self.__is_camera_source = False
 
         sentence_list_updated_signal.connect(self.__change_video)
 
