@@ -41,6 +41,22 @@ if [ "$APP_TYPE" != "pyqt" ] && [ "$APP_TYPE" != "opencv" ]; then
   show_help "error"
 fi
 
+check_valid_dir_or_symlink() {
+    local path="$1"
+    if [ -d "$path" ] || { [ -L "$path" ] && [ -d "$(readlink -f "$path")" ]; }; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+if check_valid_dir_or_symlink "./assets" && check_valid_dir_or_symlink "./assets/demo_videos"; then
+    print_colored "Models and Videos directory already exists. Skipping download." "INFO"
+else
+    print_colored "Models and Videos not found. Downloading now via setup.sh..." "INFO"
+    ./setup.sh
+fi
+
 # Run the demo application
 pushd clip_demo_app_${APP_TYPE}
 ./run_demo.sh

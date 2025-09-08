@@ -3,7 +3,7 @@
 BASE_URL="https://sdk.deepx.ai/"
 
 # default value
-SOURCE_PATH="res/video/clip_sample_videos.tar.gz"
+SOURCE_PATH="res/video/clip_sample_videos_20250908.tar.gz"
 OUTPUT_DIR="./assets/demo_videos"
 SYMLINK_TARGET_PATH=""
 SYMLINK_ARGS=""

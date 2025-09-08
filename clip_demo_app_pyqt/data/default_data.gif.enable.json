@@ -66,9 +66,9 @@
                 "color": "#E8B849"
             },
             "media_alarm_info": {
-                "enabled": false,
+                "enabled": true,
                 "title": "ALARM",
-                "media_path": "",
+                "media_path": "/home/max/Videos/Thumbs_Up_Low.gif",
                 "position": 7
             }
         },
@@ -85,9 +85,9 @@
                 "color": "#E8B849"
             },
             "media_alarm_info": {
-                "enabled": false,
+                "enabled": true,
                 "title": "ALARM",
-                "media_path": "",
+                "media_path": "/home/max/Videos/heart_01.gif",
                 "position": 7
             }
         },
@@ -104,9 +104,9 @@
                 "color": "#E8B849"
             },
             "media_alarm_info": {
-                "enabled": false,
+                "enabled": true,
                 "title": "ALARM",
-                "media_path": "",
+                "media_path": "/home/max/Videos/Holding_a_Bottle_Low.gif",
                 "position": 7
             }
         },
