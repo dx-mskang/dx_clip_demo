@@ -58,16 +58,21 @@ uninstall_project_specific_files() {
         local suggested_action_cmd="delete_path \"${data_file_path}\""
         local suggested_action_message="Would you like to delete it now?"
         local message_type="WARNING"
+        local default_input="N"
 
-        handle_cmd_interactive "$message" "$hint_msg" "$origin_cmd" "$suggested_action_cmd" || {
-            echo -e "${TAG_ERROR} Uninstalling ${PROJECT_NAME} failed!"
-            exit 1
+        handle_cmd_interactive "$message" "$hint_msg" "$origin_cmd" "$suggested_action_cmd" "$suggested_action_message" "$message_type" "$default_input" || {
+            if [ $? -eq 5 ]; then
+                echo -e "${TAG_SKIP} Skipping to delete data.json aborted by user."
+            else
+                echo -e "${TAG_ERROR} Uninstalling ${PROJECT_NAME} failed!"
+                exit 1
+            fi
         }
     fi
 }
 
 main() {
-    echo "Uninstalling ${PROJECT_NAME} ..."
+    print_colored_v2 "INFO" "Uninstalling ${PROJECT_NAME} ..."
 
     # Remove symlinks from DOWNLOAD_DIR and PROJECT_ROOT for 'Common' Rules
     uninstall_common_files
@@ -75,7 +80,7 @@ main() {
     # Uninstall the project specific files
     uninstall_project_specific_files
 
-    echo "Uninstalling ${PROJECT_NAME} done"
+    print_colored_v2 "SUCCESS" "[OK] Uninstalling ${PROJECT_NAME} done"
 }
 
 # parse args
