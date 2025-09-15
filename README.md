@@ -1,4 +1,5 @@
-[deepx_clip_demo.md](https://github.com/user-attachments/files/22325253/deepx_clip_demo.md)
+![deepx](./img/deepx.png) 
+
 # Deploying CLIP Applications with DEEPX DX-M1 on Edge Devices
 
 ## DEEPX Overview
